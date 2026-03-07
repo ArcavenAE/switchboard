@@ -178,3 +178,236 @@ jobs:
     outputs:
       version: ${{ steps.version.outputs.version }}
       tag: ${{ steps.version.outputs.tag }}
+
+  sign-and-notarize:
+    name: Sign & Notarize
+    needs: build-binaries
+    if: github.event_name == 'push' && vars.SIGNING_ENABLED == 'true'
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Download binaries
+        uses: actions/download-artifact@v4
+        with:
+          name: binaries
+
+      - name: Import certificates
+        env:
+          APPLE_CERTIFICATE_P12: ${{ secrets.APPLE_CERTIFICATE_P12 }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_INSTALLER_CERTIFICATE_P12: ${{ secrets.APPLE_INSTALLER_CERTIFICATE_P12 }}
+          APPLE_INSTALLER_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_INSTALLER_CERTIFICATE_PASSWORD }}
+        run: |
+          security create-keychain -p "" build.keychain
+          security default-keychain -s build.keychain
+          security unlock-keychain -p "" build.keychain
+
+          echo "$APPLE_CERTIFICATE_P12" | base64 --decode > cert.p12
+          security import cert.p12 -k build.keychain -P "$APPLE_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          rm cert.p12
+
+          echo "$APPLE_INSTALLER_CERTIFICATE_P12" | base64 --decode > installer-cert.p12
+          security import installer-cert.p12 -k build.keychain -P "$APPLE_INSTALLER_CERTIFICATE_PASSWORD" -T /usr/bin/pkgbuild -T /usr/bin/productbuild -T /usr/bin/productsign
+          rm installer-cert.p12
+
+          curl -sfo /tmp/DeveloperIDG2CA.cer https://www.apple.com/certificateauthority/DeveloperIDG2CA.cer
+          security add-certificates -k build.keychain /tmp/DeveloperIDG2CA.cer
+          rm /tmp/DeveloperIDG2CA.cer
+
+          security set-key-partition-list -S apple-tool:,apple: -s -k "" build.keychain
+
+      - name: Verify certificate import
+        run: |
+          echo "Listing signing identities:"
+          security find-identity -v build.keychain
+          echo ""
+          echo "Checking for installer identity:"
+          security find-identity -v build.keychain | grep -i "installer" || echo "WARNING: No installer identity found in keychain"
+
+      - name: Sign darwin binaries
+        env:
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+        run: |
+          codesign --force --options runtime --sign "$APPLE_SIGNING_IDENTITY" --timestamp switchboard-darwin-arm64
+          codesign --force --options runtime --sign "$APPLE_SIGNING_IDENTITY" --timestamp switchboard-darwin-amd64
+
+      - name: Verify signatures
+        run: |
+          codesign --verify --deep --strict switchboard-darwin-arm64
+          codesign --verify --deep --strict switchboard-darwin-amd64
+
+      - name: Build app bundles
+        run: |
+          VERSION="${{ needs.build-binaries.outputs.version }}"
+          chmod +x scripts/create-app.sh
+
+          ./scripts/create-app.sh switchboard-darwin-arm64 "$VERSION" .
+          mv Switchboard.app Switchboard-arm64.app
+
+          ./scripts/create-app.sh switchboard-darwin-amd64 "$VERSION" .
+          mv Switchboard.app Switchboard-amd64.app
+
+      - name: Sign app bundles
+        env:
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+        run: |
+          codesign --force --deep --options runtime --sign "$APPLE_SIGNING_IDENTITY" --timestamp Switchboard-arm64.app
+          codesign --force --deep --options runtime --sign "$APPLE_SIGNING_IDENTITY" --timestamp Switchboard-amd64.app
+
+      - name: Build dmg images
+        run: |
+          VERSION="${{ needs.build-binaries.outputs.version }}"
+          chmod +x scripts/create-dmg.sh
+
+          ./scripts/create-dmg.sh Switchboard-arm64.app "$VERSION" switchboard-arm64.dmg
+          ./scripts/create-dmg.sh Switchboard-amd64.app "$VERSION" switchboard-amd64.dmg
+
+      - name: Build pkg installers
+        env:
+          APPLE_INSTALLER_IDENTITY: ${{ secrets.APPLE_INSTALLER_IDENTITY }}
+        run: |
+          if ! security find-identity -v build.keychain | grep -q "$APPLE_INSTALLER_IDENTITY"; then
+            echo "::error::APPLE_INSTALLER_IDENTITY not found in keychain. Expected format: 'Developer ID Installer: Name (TeamID)'"
+            echo "Available identities:"
+            security find-identity -v build.keychain
+            exit 1
+          fi
+
+          VERSION="${{ needs.build-binaries.outputs.version }}"
+          chmod +x scripts/create-pkg.sh
+
+          ./scripts/create-pkg.sh switchboard-darwin-arm64 "$VERSION" "$APPLE_INSTALLER_IDENTITY" switchboard-arm64.pkg
+          ./scripts/create-pkg.sh switchboard-darwin-amd64 "$VERSION" "$APPLE_INSTALLER_IDENTITY" switchboard-amd64.pkg
+
+      - name: Notarize and staple all artifacts
+        env:
+          APPLE_NOTARIZATION_APPLE_ID: ${{ secrets.APPLE_NOTARIZATION_APPLE_ID }}
+          APPLE_NOTARIZATION_PASSWORD: ${{ secrets.APPLE_NOTARIZATION_PASSWORD }}
+          APPLE_NOTARIZATION_TEAM_ID: ${{ secrets.APPLE_NOTARIZATION_TEAM_ID }}
+        run: |
+          for ARTIFACT in switchboard-arm64.pkg switchboard-amd64.pkg switchboard-arm64.dmg switchboard-amd64.dmg; do
+            echo "Notarizing $ARTIFACT..."
+            xcrun notarytool submit "$ARTIFACT" \
+              --apple-id "$APPLE_NOTARIZATION_APPLE_ID" \
+              --password "$APPLE_NOTARIZATION_PASSWORD" \
+              --team-id "$APPLE_NOTARIZATION_TEAM_ID" \
+              --wait --timeout 14400
+            xcrun stapler staple "$ARTIFACT"
+          done
+
+      - name: Upload signed binaries and installers
+        uses: actions/upload-artifact@v4
+        with:
+          name: signed-binaries
+          path: |
+            switchboard-darwin-arm64
+            switchboard-darwin-amd64
+            switchboard-arm64.pkg
+            switchboard-amd64.pkg
+            switchboard-arm64.dmg
+            switchboard-amd64.dmg
+          retention-days: 14
+
+      - name: Cleanup keychain
+        if: always()
+        run: security delete-keychain build.keychain || true
+
+  release:
+    name: Create Release
+    needs: [build-binaries, sign-and-notarize]
+    if: github.event_name == 'push' && !cancelled() && needs.build-binaries.result == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download signed binaries
+        if: needs.sign-and-notarize.result == 'success'
+        uses: actions/download-artifact@v4
+        with:
+          name: signed-binaries
+
+      - name: Download unsigned binaries (fallback)
+        if: needs.sign-and-notarize.result != 'success'
+        uses: actions/download-artifact@v4
+        with:
+          name: binaries
+
+      - name: Download all binaries (for linux)
+        if: needs.sign-and-notarize.result == 'success'
+        uses: actions/download-artifact@v4
+        with:
+          name: binaries
+          path: unsigned-binaries
+
+      - name: Copy linux binary from unsigned artifacts
+        if: needs.sign-and-notarize.result == 'success'
+        run: cp unsigned-binaries/switchboard-linux-amd64 . && rm -rf unsigned-binaries
+
+      - name: List release files
+        run: ls -la switchboard-* *.pkg *.dmg 2>/dev/null || true
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.build-binaries.outputs.tag }}
+          name: Alpha ${{ needs.build-binaries.outputs.tag }}
+          body: |
+            Automated alpha release from merge to main.
+
+            **Version:** ${{ needs.build-binaries.outputs.version }}
+            **Commit:** ${{ github.sha }}
+            **Signed:** ${{ needs.sign-and-notarize.result == 'success' && 'Yes (Apple Developer ID)' || 'No (unsigned)' }}
+
+            **Binaries:**
+            - `switchboard-darwin-arm64` — macOS Apple Silicon
+            - `switchboard-darwin-amd64` — macOS Intel
+            - `switchboard-linux-amd64` — Linux x86_64
+            ${{ needs.sign-and-notarize.result == 'success' && '- `switchboard-arm64.pkg` — macOS Installer (Apple Silicon)\n- `switchboard-amd64.pkg` — macOS Installer (Intel)\n- `switchboard-arm64.dmg` — macOS Disk Image (Apple Silicon)\n- `switchboard-amd64.dmg` — macOS Disk Image (Intel)' || '' }}
+          prerelease: true
+          files: |
+            switchboard-darwin-arm64
+            switchboard-darwin-amd64
+            switchboard-linux-amd64
+            switchboard-arm64.pkg
+            switchboard-amd64.pkg
+            switchboard-arm64.dmg
+            switchboard-amd64.dmg
+
+  update-homebrew:
+    name: Update Homebrew Tap
+    needs: [build-binaries, release]
+    if: github.event_name == 'push' && needs.release.result == 'success' && vars.SIGNING_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Download signed binaries
+        uses: actions/download-artifact@v4
+        with:
+          name: signed-binaries
+
+      - name: Update Homebrew formula
+        env:
+          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        run: |
+          VERSION="${{ needs.build-binaries.outputs.version }}"
+          TAG="${{ needs.build-binaries.outputs.tag }}"
+
+          SHA256_ARM64=$(shasum -a 256 switchboard-darwin-arm64 | cut -d' ' -f1)
+          SHA256_AMD64=$(shasum -a 256 switchboard-darwin-amd64 | cut -d' ' -f1)
+
+          git clone "https://x-access-token:${HOMEBREW_TAP_TOKEN}@github.com/arcaven/homebrew-tap.git" homebrew-tap-repo
+          cd homebrew-tap-repo
+
+          mkdir -p Formula
+          cp ../Formula/switchboard.rb Formula/switchboard.rb
+
+          sed -i "s/VERSION_PLACEHOLDER/$VERSION/g" Formula/switchboard.rb
+          sed -i "s/TAG_PLACEHOLDER/$TAG/g" Formula/switchboard.rb
+          sed -i "s/SHA256_ARM64_PLACEHOLDER/$SHA256_ARM64/g" Formula/switchboard.rb
+          sed -i "s/SHA256_AMD64_PLACEHOLDER/$SHA256_AMD64/g" Formula/switchboard.rb
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Formula/switchboard.rb
+          git commit -m "Update switchboard to $VERSION"
+          git push
