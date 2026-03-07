@@ -5,8 +5,9 @@
 *.so
 *.dylib
 
-# Test binary
+# Go test binary
 *.test
+!Dockerfile.test
 
 # Output of go coverage
 *.out
@@ -32,6 +33,8 @@ Thumbs.db
 # Environment
 .env
 .env.local
+*.env.*
+!.env.local.example
 
 # Build output
 /bin/

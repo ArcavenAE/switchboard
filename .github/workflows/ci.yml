@@ -1,0 +1,180 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  quality-gate:
+    name: Quality Gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: 'go.mod'
+
+      - name: Install gofumpt
+        run: go install mvdan.cc/gofumpt@v0.7.0
+
+      - name: Check formatting (gofumpt)
+        run: |
+          UNFORMATTED=$(gofumpt -l .)
+          if [ -n "$UNFORMATTED" ]; then
+            echo "::error::Files need formatting with gofumpt:"
+            echo "$UNFORMATTED"
+            exit 1
+          fi
+
+      - name: Run go vet
+        run: go vet ./...
+
+      - name: Run golangci-lint
+        uses: golangci/golangci-lint-action@v7
+
+      - name: Run tests with coverage and race detector
+        run: go test ./... -v -count=1 -race -coverprofile=coverage.out -covermode=atomic
+
+      - name: Display coverage summary
+        run: go tool cover -func=coverage.out
+
+      - name: Enforce coverage floor
+        env:
+          COVERAGE_THRESHOLD: '75'
+        run: |
+          COVERAGE=$(go tool cover -func=coverage.out | grep '^total:' | awk '{print $NF}' | tr -d '%')
+          echo "Total coverage: ${COVERAGE}%  (threshold: ${COVERAGE_THRESHOLD}%)"
+          if [ "$(echo "$COVERAGE < $COVERAGE_THRESHOLD" | bc -l)" -eq 1 ]; then
+            echo "::error::Coverage ${COVERAGE}% is below the ${COVERAGE_THRESHOLD}% threshold"
+            exit 1
+          fi
+
+      - name: Post coverage comment on PR
+        if: github.event_name == 'pull_request'
+        continue-on-error: true
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const { execSync } = require('child_process');
+            const summary = execSync('go tool cover -func=coverage.out').toString();
+            const totalLine = summary.split('\n').find(l => l.startsWith('total:'));
+            const coverage = totalLine ? totalLine.match(/[\d.]+%/)?.[0] : 'unknown';
+            const body = `## Coverage Report\n\n**Total coverage: ${coverage}**\n\n<details>\n<summary>Package breakdown</summary>\n\n\`\`\`\n${summary}\`\`\`\n</details>`;
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            const existing = comments.find(c => c.body.startsWith('## Coverage Report'));
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body,
+              });
+            }
+
+      - name: Validate build
+        run: go build -o /dev/null ./cmd/switchboard
+
+  test-docker-e2e:
+    name: Docker E2E Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Cache Docker layers
+        uses: actions/cache@v4
+        with:
+          path: /tmp/.buildx-cache
+          key: ${{ runner.os }}-buildx-${{ hashFiles('Dockerfile.test', 'go.mod', 'go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-buildx-
+
+      - name: Build Docker test image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.test
+          load: true
+          tags: switchboard-test:latest
+          cache-from: type=local,src=/tmp/.buildx-cache
+          cache-to: type=local,dest=/tmp/.buildx-cache-new,mode=max
+
+      - name: Create test-results directory
+        run: mkdir -p test-results
+
+      - name: Run Docker E2E tests
+        run: docker compose -f docker-compose.test.yml run --rm -T test
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: docker-e2e-results
+          path: test-results/
+          retention-days: 14
+
+      # Rotate buildx cache to prevent unbounded growth
+      - name: Rotate cache
+        if: always()
+        run: |
+          rm -rf /tmp/.buildx-cache
+          mv /tmp/.buildx-cache-new /tmp/.buildx-cache 2>/dev/null || true
+
+  build-binaries:
+    name: Build Binaries
+    needs: quality-gate
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: 'go.mod'
+
+      - name: Generate version
+        id: version
+        run: |
+          VERSION="0.1.0-alpha.$(date -u +%Y%m%d).${GITHUB_SHA::7}"
+          TAG="alpha-$(date -u +%Y%m%d)-${GITHUB_SHA::7}"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Build binaries
+        run: |
+          LDFLAGS="-X main.version=${{ steps.version.outputs.version }}"
+          GOOS=darwin GOARCH=arm64 go build -ldflags "$LDFLAGS" -o switchboard-darwin-arm64 ./cmd/switchboard
+          GOOS=darwin GOARCH=amd64 go build -ldflags "$LDFLAGS" -o switchboard-darwin-amd64 ./cmd/switchboard
+          GOOS=linux GOARCH=amd64 go build -ldflags "$LDFLAGS" -o switchboard-linux-amd64 ./cmd/switchboard
+
+      - name: Upload binaries
+        uses: actions/upload-artifact@v4
+        with:
+          name: binaries
+          path: switchboard-*
+          retention-days: 14
+
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
