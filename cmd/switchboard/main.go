@@ -19,7 +19,9 @@ func run(stdout io.Writer, args []string) error {
 	}
 
 	if *showVersion || fs.NArg() == 0 {
-		fmt.Fprintf(stdout, "switchboard %s\n", version)
+		if _, err := fmt.Fprintf(stdout, "switchboard %s\n", version); err != nil {
+			return fmt.Errorf("write version: %w", err)
+		}
 	}
 
 	return nil

@@ -96,4 +96,10 @@ so that all future stories have a stable green baseline to build on.
 
 ### Completion Notes List
 
+### CI Findings (Post-Push)
+
+1. **Quality Gate: `errcheck` violation** — `fmt.Fprintf` return value unchecked. golangci-lint v2 with errcheck enabled. Fixed by checking error and wrapping with `%w`.
+2. **Docker E2E: missing `go.sum`** — `Dockerfile.test` COPY expects `go.sum` but zero-dependency project doesn't generate one. Fixed by creating empty `go.sum` (valid for no-deps projects).
+3. **Coverage regression** — handling `fmt.Fprintf` error added an uncovered branch. Fixed by adding `failWriter` test that exercises the write-error path. Coverage: 81.8%.
+
 ### File List

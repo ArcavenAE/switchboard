@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"errors"
 	"strings"
 	"testing"
 )
@@ -63,5 +64,20 @@ func TestVersionNonEmpty(t *testing.T) {
 
 	if version == "" {
 		t.Fatal("version must not be empty")
+	}
+}
+
+type failWriter struct{}
+
+func (failWriter) Write([]byte) (int, error) {
+	return 0, errors.New("write failed")
+}
+
+func TestRun_WriteError(t *testing.T) {
+	t.Parallel()
+
+	err := run(failWriter{}, []string{"switchboard", "--version"})
+	if err == nil {
+		t.Fatal("expected error from failing writer")
 	}
 }
