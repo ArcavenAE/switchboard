@@ -1,15 +1,13 @@
 class Switchboard < Formula
-  desc "switchboard"
+  desc "Low-latency encrypted tmux session router"
   homepage "https://github.com/arcaven/switchboard"
   version "VERSION_PLACEHOLDER"
   license "MIT"
 
-  on_arm do
+  if Hardware::CPU.arm?
     url "https://github.com/arcaven/switchboard/releases/download/TAG_PLACEHOLDER/switchboard-darwin-arm64"
     sha256 "SHA256_ARM64_PLACEHOLDER"
-  end
-
-  on_intel do
+  else
     url "https://github.com/arcaven/switchboard/releases/download/TAG_PLACEHOLDER/switchboard-darwin-amd64"
     sha256 "SHA256_AMD64_PLACEHOLDER"
   end
@@ -20,6 +18,6 @@ class Switchboard < Formula
   end
 
   test do
-    assert_match "switchboard", shell_output("#{bin}/switchboard --version 2>&1", 0)
+    assert_match "switchboard", shell_output("#{bin}/switchboard --version 2>&1")
   end
 end
