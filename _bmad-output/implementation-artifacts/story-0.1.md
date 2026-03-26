@@ -10,7 +10,7 @@ so that all future stories have a stable green baseline to build on.
 
 ## Acceptance Criteria
 
-1. `go.mod` exists with module path `github.com/arcaven/switchboard` and Go 1.25+
+1. `go.mod` exists with module path `github.com/arcavenae/switchboard` and Go 1.25+
 2. `cmd/switchboard/main.go` compiles and produces a binary
 3. `switchboard --version` prints the version string and exits 0
 4. Version is injectable via `-ldflags "-X main.version=X.Y.Z"`; defaults to `"dev"` when not injected
@@ -25,7 +25,7 @@ so that all future stories have a stable green baseline to build on.
 ## Tasks / Subtasks
 
 - [ ] Task 1: Initialize Go module (AC: #1)
-  - [ ] `go mod init github.com/arcaven/switchboard`
+  - [ ] `go mod init github.com/arcavenae/switchboard`
   - [ ] Verify `go.mod` specifies Go 1.25+
 - [ ] Task 2: Create entry point (AC: #2, #3, #4)
   - [ ] `cmd/switchboard/main.go` with `--version` flag

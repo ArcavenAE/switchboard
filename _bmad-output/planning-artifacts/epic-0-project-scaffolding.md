@@ -31,7 +31,7 @@ This is NOT product work. This is infrastructure. One story, one PR, done.
 **What:** Create the minimal Go project structure that satisfies CI.
 
 **Deliverables:**
-1. `go.mod` — module `github.com/arcaven/switchboard`, Go 1.25+
+1. `go.mod` — module `github.com/arcavenae/switchboard`, Go 1.25+
 2. `cmd/switchboard/main.go` — entry point with `--version` flag, prints version and exits
 3. `cmd/switchboard/main_test.go` — table-driven tests for version output, exit behavior
 4. Justfile updates if needed (verify existing `just` targets work)
