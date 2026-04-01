@@ -1,21 +1,21 @@
 ---
-stepsCompleted: [1, 2-research, 3-first-principles, 4-morphological-analysis-complete, 5-loss-recovery-qos-research, 6-downstream-strategy-research, 7-switchboard-for-mcp-exploration]
+stepsCompleted: [1, 2-research, 3-first-principles, 4-morphological-analysis-complete, 5-loss-recovery-qos-research, 6-downstream-strategy-research, 7-switchboard-for-mcp-exploration, 8-tmux-control-mode-depth]
 inputDocuments: []
 session_topic: 'Switchboard - low-latency multi-path E2E encrypted tmux session router architecture with virtual switched networks'
 session_goals: 'Naming, architecture design, edge protocol design, failure mode analysis, use cases'
 selected_approach: 'ai-recommended'
-techniques_used: ['research-synthesis', 'first-principles-thinking', 'morphological-analysis', 'values-exploration', 'research-synthesis-loss-recovery', 'cross-pollination', 'constraint-mapping', 'research-synthesis-downstream-strategy', 'exploration-mcp']
+techniques_used: ['research-synthesis', 'first-principles-thinking', 'morphological-analysis', 'values-exploration', 'research-synthesis-loss-recovery', 'cross-pollination', 'constraint-mapping', 'research-synthesis-downstream-strategy', 'exploration-mcp', 'research-synthesis-tmux-control-mode']
 ideas_generated: []
 context_file: ''
-next_phase: 'queued-session-4-tmux-control-mode-depth'
+next_phase: 'queued-session-5-router-control-plane'
 morphological_parameters_completed: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
 morphological_parameters_next: null
 queued_sessions:
   - 'COMPLETED: technical-research: loss recovery and QoS techniques for interactive overlays (X.25, interleaving, hybrid ARQ+FEC)'
   - 'COMPLETED: technical-research: downstream strategy (scrollback, graphics/Sixel/Kitty, TUI, tmux control mode, Claude Code use case)'
   - 'EXPLORED-PARKED: exploration: Switchboard for MCP - infrastructure alignment real, gaps are MCP HTTP-inherited limitations, undisclosed context pending'
-  - 'exploration: Switchboard for MCP - agent-to-agent and agent-to-tool overlay network'
-  - 'technical-research: tmux control mode depth, console-side integration options'
+  - 'EXPLORED-PARKED: exploration: Switchboard for MCP - agent-to-agent and agent-to-tool overlay network'
+  - 'COMPLETED: technical-research: tmux control mode depth, console-side integration options'
   - 'design: router control plane (topology, link-state, forwarding computation, distributed database)'
   - 'design: router management plane (config, monitoring, operations, upgrades)'
   - 'design: admission keying particulars (authentication, reauthentication, revocation propagation)'
@@ -30,8 +30,9 @@ session_bootstrap: |
     Values/Philosophy (10 values + death conditions), Morphological Analysis (12 parameters — ALL COMPLETE),
     Loss Recovery & QoS Technical Research (queued session #1 — COMPLETE),
     Downstream Strategy Technical Research (queued session #2 — COMPLETE)
-  - **Next phase:** Queued session #4 (tmux control mode depth) or another queued session
+  - **Next phase:** Queued session #5 (router control plane) or another queued session
   - **Session #3 (Switchboard for MCP): explored, parked** — undisclosed context pending.
+  - **Session #4 (tmux control mode depth): complete** — console-side decision: CN-E configurable (CN-B/D MVP, CN-C post-MVP, CN-A long-term). See Queued Session 4 Results.
   - **All 12 parameters have working directions chosen.**
   - **Parameter 2 now has concrete technique selections** — see Queued Session 1 Results.
   - **Parameter 6 downstream now decided: D-CE** (hybrid via content-type tiering) — see Queued Session 2 Results.
@@ -618,7 +619,7 @@ Router treats multicast as "forward to all interfaces with subscribers to this a
 | 5 | VSN Admission | Two-tier: admission keys (VSN) + session auth (access node), signed multicast | Decided (envelope details TBD) |
 | 6 | Upstream/Downstream | Upstream: U-C idempotent replay. Downstream: D-CE hybrid via content-type tiering (MVP: D-A reliable stream) | Decided |
 | 7 | Router Forwarding | A (address) MVP → F (address+label) post-MVP; 3 multicast addresses per VSN | Decided (revisit flag set) |
-| 8 | tmux Integration | AN-E (control mode + PTY fallback). Console: all options open, configurable | Access node decided, console research flagged |
+| 8 | tmux Integration | AN-E (control mode + PTY fallback). Console: CN-E configurable (CN-B/D MVP, CN-C post-MVP, CN-A long-term) | Decided |
 | 9 | Node Multi-homing | MH-C active/active, PS-D policy+latency, FT-D layered failover, ID-D crypto identity, IF-D upstream free/downstream TBD | Decided |
 | 10 | Frame Envelope | EL-B two-layer, router HMAC, ADDR-C 8-byte VSN-scoped hash, 44-byte outer + ~16-byte channel, EXT-D versioned outer/TLV channel | Decided |
 | 11 | Router-to-Router | TD-E seed+gossip, SE-A link-state + SE-E observer, latency+loss metrics, RS-D Noise auth | Design space mapped, router control plane TBD |
@@ -797,7 +798,7 @@ _Re-scoped after critical correction. Control node is a user-facing node type, n
 | 5 | VSN Admission | Two-tier: admission keys (VSN) + session auth (access node), signed multicast | Decided (envelope details TBD) |
 | 6 | Upstream/Downstream | Upstream: U-C idempotent replay. Downstream: D-CE hybrid via content-type tiering (MVP: D-A reliable stream) | Decided |
 | 7 | Router Forwarding | A (address) MVP → F (address+label) post-MVP; 3 multicast addresses per VSN | Decided (revisit flag set) |
-| 8 | tmux Integration | AN-E (control mode + PTY fallback). Console: all options open, configurable | Access node decided, console research flagged |
+| 8 | tmux Integration | AN-E (control mode + PTY fallback). Console: CN-E configurable (CN-B/D MVP, CN-C post-MVP, CN-A long-term) | Decided |
 | 9 | Node Multi-homing | MH-C active/active, PS-D policy+latency, FT-D layered failover, ID-D crypto identity, IF-D upstream free/downstream TBD | Decided |
 | 10 | Frame Envelope | EL-B two-layer, router HMAC, ADDR-C 8-byte VSN-scoped hash, 44-byte outer + ~16-byte channel, EXT-D versioned outer/TLV channel | Decided |
 | 11 | Router-to-Router | TD-E seed+gossip, SE-A link-state + SE-E observer, latency+loss metrics, RS-D Noise auth | Design space mapped, router control plane TBD |
@@ -816,6 +817,8 @@ _Re-scoped after critical correction. Control node is a user-facing node type, n
 4. ~~**Exploration: Switchboard for MCP**~~ — **EXPLORED, PARKED** (see Queued Session 3 Results below). Infrastructure alignment is real. Key insight: the apparent gaps are limitations of MCP's HTTP-inherited design, not inherent requirements of agent communication. Undisclosed context prevents full assessment. Reopens when human discloses or director design matures.
 
 5. **Design: Router Control Plane** — Topology discovery, link-state exchange, forwarding computation, network-distributed database for admission state/VSN membership/revocation propagation. Foundational piece that multiple parameters depend on.
+
+   ~~**Technical Research: tmux control mode depth, console-side integration options**~~ — **COMPLETED** (see Queued Session 4 Results below). Merged into session #4 since it was originally queued separately but covers the same Parameter 8 scope.
 
 6. **Design: Router Management Plane** — Configuration, monitoring, operations, upgrades. How routers are provisioned, how the first control key is bootstrapped (VR-C), rolling updates, observability.
 
@@ -1421,3 +1424,105 @@ The human has indicated there are aspects of this use case not yet on the table.
 - Undisclosed context reveals that the alignment is deeper than infrastructure overlap
 - Director design shows that agent communication needs connection-oriented, quality-managed, terminal-native channels — exactly what Switchboard provides
 - Evidence that MCP's HTTP assumptions are actively holding back agent capabilities, and Switchboard's model enables capabilities that HTTP-based MCP cannot
+
+---
+
+## Queued Session 4 Results: tmux Control Mode Depth & Console-Side Integration
+
+_Completed 2026-03-31. Technique: research-synthesis._
+_Feeds: Parameter 8 (tmux Integration) — console-side decision._
+_Decision: **CN-E configurable** — CN-B/CN-D for MVP, CN-C for tmux users post-MVP, CN-A as long-term foundation._
+
+### Control Mode Protocol — Full Depth
+
+**Key discoveries beyond session #2 baseline:**
+
+**`%subscription-changed` (tmux 3.4+):** Subscribe to any tmux format variable, get pushed updates. Eliminates polling for content-type detection:
+```
+refresh-client -B "alt:#{alternate_on}"
+→ %subscription-changed alt 1
+```
+
+Relevant subscribable variables: `alternate_on` (TUI detection), `cursor_x`/`cursor_y`, `pane_current_command`, `pane_width`/`pane_height`, `pane_dead`, `scroll_position`, `pane_in_mode`.
+
+**`%pause` / `%continue` (tmux 3.4+):** Per-pane output flow control. Access node can pause output when downstream channel is congested — tmux buffers at source. Alternative to TLPKTDROP for streaming content where completeness matters more than freshness.
+
+**`%extended-output` (tmux 3.4+):** Richer metadata per output chunk. Newer, less documented, but indicates tmux is moving toward more structured output metadata.
+
+**Connection to session #2 findings:** `%subscription-changed` makes the content-type detector's layer 2 (pane state cache) fully event-driven with zero polling. `%pause`/`%continue` adds a sixth option to the recovery cascade — buffer at source instead of TLPKTDROP, applicable to streaming content types.
+
+### Console-Side Integration — Four Options Assessed
+
+**CN-A: Control Mode Consumer**
+- Console parses control mode, reconstructs terminal state locally
+- Local scrollback (owns the buffer), local resize (re-renders), client-side intelligence
+- Engineering scope: building a minimal terminal emulator
+- Compatible with state sync downstream (D-CE)
+- Go terminal emulator libraries are sparse — may need to build or port
+
+**CN-B: PTY Injection**
+- Pipe received bytes into local PTY, terminal emulator renders
+- Simplest useful implementation — graphics pass through naturally
+- No local state tracking, no re-render on resize
+- Works with reliable ordered stream (D-A), NOT with state sync (D-CE)
+
+**CN-C: Local tmux Mirroring**
+- Local tmux mirrors remote topology — windows, panes, layout
+- Native scrollback, copy-paste, mouse, splits — strongest "illusion of local"
+- Requires tmux on console side (acceptable for target audience)
+- Significant complexity: bidirectional sync, keystroke routing, pane mapping
+- Remote tmux is authoritative; local pane creation intercepted or prevented
+
+**CN-D: Direct Terminal Write**
+- `write(stdout, received_bytes)` — simplest possible
+- Terminal emulator handles everything
+- Adequate for MVP when loss is rare (E router LAN)
+
+### Console-Side Decision
+
+**CN-E: Configurable, with opinionated default progression:**
+
+| Phase | Console Mode | Downstream Mode | Target |
+|-------|-------------|----------------|--------|
+| **MVP** | CN-D or CN-B | D-A reliable ordered stream | Works now, simple |
+| **Post-MVP tier 1** | CN-C (local tmux) | D-A or partial D-CE | Premium for tmux users |
+| **Post-MVP tier 2** | CN-A (control mode consumer) | Full D-CE state sync | Client-side intelligence |
+
+**Key architectural insight:** The access node and console can be at different capability levels. A smart access node running full D-CE state sync can serve a dumb CN-B/CN-D console by sending diff-applied output as a byte stream. Console capability doesn't constrain access node capability.
+
+### Updated Parameter 8 Specification
+
+```
+Access node: AN-E (control mode + PTY fallback) — unchanged.
+  tmux 3.4+ features used:
+    %subscription-changed for event-driven pane state monitoring
+    %pause/%continue for source-side flow control
+    %extended-output for richer metadata
+
+Console: CN-E configurable.
+  MVP: CN-D (direct write) or CN-B (PTY injection).
+    Reliable ordered stream downstream. Switchboard invisible.
+  Post-MVP tier 1: CN-C (local tmux mirroring).
+    Optional. Falls back to CN-B if local tmux unavailable.
+    Strongest "illusion of local" for target audience.
+  Post-MVP tier 2: CN-A (control mode consumer).
+    Terminal state tracker on console side.
+    Enables full D-CE state sync at both ends.
+    Local scrollback, resize, search, highlighting.
+    Long-term foundation for client-side intelligence.
+```
+
+### Connections to Other Parameters and Sessions
+
+- **Parameter 6 / Session #2 (Downstream Strategy):** CN-A enables full D-CE on console side. CN-B/CN-D work with D-A only. Access node D-CE works regardless of console capability.
+- **Parameter 3 (Degradation Signaling):** `%pause`/`%continue` adds source-side buffering as alternative to TLPKTDROP for streaming content.
+- **Session #2 Target 4 (Content-Type Detection):** `%subscription-changed` makes layer 2 fully event-driven.
+- **Session #1 (Loss Recovery):** Source-side pause via `%pause` could be a fifth step in the recovery cascade, between SREJ and TLPKTDROP — for content types where completeness matters.
+
+### Open Questions
+
+1. **Go terminal emulator library** — build vs. port for CN-A? Scope assessment needed.
+2. **CN-C local tmux mirroring** — bidirectional sync protocol. How does the console prevent local pane creation from conflicting with remote authority?
+3. **CN-C keystroke routing** — mapping local pane IDs to remote pane IDs. Needs a pane registry.
+4. **`%pause` integration with recovery cascade** — should source-side pause be step 4.5 (between SREJ and TLPKTDROP) or a content-type-specific alternative to TLPKTDROP?
+5. **tmux version requirements** — `%subscription-changed`, `%pause`, and `%extended-output` require tmux 3.4+. What's the fallback for older tmux? Polling + no pause + basic `%output` only.
