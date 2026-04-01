@@ -1,18 +1,19 @@
 ---
-stepsCompleted: [1, 2-research, 3-first-principles, 4-morphological-analysis-complete, 5-loss-recovery-qos-research, 6-downstream-strategy-research]
+stepsCompleted: [1, 2-research, 3-first-principles, 4-morphological-analysis-complete, 5-loss-recovery-qos-research, 6-downstream-strategy-research, 7-switchboard-for-mcp-exploration]
 inputDocuments: []
 session_topic: 'Switchboard - low-latency multi-path E2E encrypted tmux session router architecture with virtual switched networks'
 session_goals: 'Naming, architecture design, edge protocol design, failure mode analysis, use cases'
 selected_approach: 'ai-recommended'
-techniques_used: ['research-synthesis', 'first-principles-thinking', 'morphological-analysis', 'values-exploration', 'research-synthesis-loss-recovery', 'cross-pollination', 'constraint-mapping', 'research-synthesis-downstream-strategy']
+techniques_used: ['research-synthesis', 'first-principles-thinking', 'morphological-analysis', 'values-exploration', 'research-synthesis-loss-recovery', 'cross-pollination', 'constraint-mapping', 'research-synthesis-downstream-strategy', 'exploration-mcp']
 ideas_generated: []
 context_file: ''
-next_phase: 'queued-session-3-switchboard-for-mcp'
+next_phase: 'queued-session-4-tmux-control-mode-depth'
 morphological_parameters_completed: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
 morphological_parameters_next: null
 queued_sessions:
   - 'COMPLETED: technical-research: loss recovery and QoS techniques for interactive overlays (X.25, interleaving, hybrid ARQ+FEC)'
   - 'COMPLETED: technical-research: downstream strategy (scrollback, graphics/Sixel/Kitty, TUI, tmux control mode, Claude Code use case)'
+  - 'EXPLORED-PARKED: exploration: Switchboard for MCP - infrastructure alignment real, gaps are MCP HTTP-inherited limitations, undisclosed context pending'
   - 'exploration: Switchboard for MCP - agent-to-agent and agent-to-tool overlay network'
   - 'technical-research: tmux control mode depth, console-side integration options'
   - 'design: router control plane (topology, link-state, forwarding computation, distributed database)'
@@ -29,7 +30,8 @@ session_bootstrap: |
     Values/Philosophy (10 values + death conditions), Morphological Analysis (12 parameters — ALL COMPLETE),
     Loss Recovery & QoS Technical Research (queued session #1 — COMPLETE),
     Downstream Strategy Technical Research (queued session #2 — COMPLETE)
-  - **Next phase:** Queued session #3 (Switchboard for MCP) or another queued session
+  - **Next phase:** Queued session #4 (tmux control mode depth) or another queued session
+  - **Session #3 (Switchboard for MCP): explored, parked** — undisclosed context pending.
   - **All 12 parameters have working directions chosen.**
   - **Parameter 2 now has concrete technique selections** — see Queued Session 1 Results.
   - **Parameter 6 downstream now decided: D-CE** (hybrid via content-type tiering) — see Queued Session 2 Results.
@@ -811,7 +813,7 @@ _Re-scoped after critical correction. Control node is a user-facing node type, n
 
 3. ~~**Technical Research: Downstream Strategy**~~ — **COMPLETED** (see Queued Session 2 Results below)
 
-4. **Exploration: Switchboard for MCP** — Switchboard as an MPLS-like overlay network for MCP, primarily for agent-teaming and agent-tooling. A replacement for agent-to-agent and agent-to-tool virtual networks over reliable, untrusted infrastructure. Originated from exploring remote Claude Code director-to-multiclaude supervisor communication channels. Discovered Claude Relay and the prevalence of MCP as the serious multi-agent communication method. Core question: why WebSocket+MCP+SSH? Could connection-oriented, terminal-native, text-oriented communication be more effective than streaming WebSockets and abused HTTP? This extends Switchboard's values (sovereign sessions, untrusted network, simple reliable communication) into the agent-to-agent domain. **Not a pivot — a potential second use case that shares the same infrastructure and values.**
+4. ~~**Exploration: Switchboard for MCP**~~ — **EXPLORED, PARKED** (see Queued Session 3 Results below). Infrastructure alignment is real. Key insight: the apparent gaps are limitations of MCP's HTTP-inherited design, not inherent requirements of agent communication. Undisclosed context prevents full assessment. Reopens when human discloses or director design matures.
 
 5. **Design: Router Control Plane** — Topology discovery, link-state exchange, forwarding computation, network-distributed database for admission state/VSN membership/revocation propagation. Foundational piece that multiple parameters depend on.
 
@@ -1339,3 +1341,83 @@ Downstream post-MVP: D-CE hybrid via content-type tiering.
 5. **Sixel chunking boundaries** — row boundaries (`-`) are natural chunk points. Are they sufficient, or do large Sixel images need sub-row chunking?
 6. **State sync acknowledgment** — how does the console ACK screen state? Per-diff sequence number? Last-seen state hash? Needed for the access node to know what to diff against.
 7. **iTerm2 is not a reference implementation** — terminal state tracking is proven feasible but Switchboard must build its own minimal, purpose-built tracker. No dependency on bloated consumer software.
+
+---
+
+## Queued Session 3 Results: Switchboard for MCP — Exploration
+
+_Completed 2026-03-31. Technique: exploration._
+_Status: **Explored, parked.** Infrastructure alignment real. Incomplete — undisclosed context prevents full assessment._
+
+### What MCP Is (Current State)
+
+Model Context Protocol (MCP) — Anthropic, 2024-2025. Client-server protocol for connecting AI agents to tools and data sources via JSON-RPC.
+
+**Two defined transports:**
+1. **stdio** — MCP server as subprocess, stdin/stdout, local only.
+2. **Streamable HTTP (SSE)** — HTTP endpoint, POST for requests, SSE for streaming responses, session management via headers. Remote-capable.
+
+**Traffic characteristics:**
+- Tool discovery: 1-10 KB
+- Tool invocation: 100 bytes - 5 KB
+- Tool results: 100 bytes - 1 MB (variable)
+- Progress notifications: 50-200 bytes
+
+**Multi-agent use case:** Agents expose MCP server interfaces to each other. Currently requires per-agent HTTP endpoint, TLS, per-connection auth, SSE for streaming (unidirectional).
+
+### Infrastructure Alignment with Switchboard
+
+| MCP Remote Need | Current (HTTPS) | Switchboard Equivalent |
+|----------------|-----------------|----------------------|
+| Agent connectivity | HTTP endpoint per agent | VSN membership |
+| Authentication | OAuth/Bearer per connection | VSN admission + session auth — prove once |
+| Encryption | TLS per connection | SSH E2E |
+| Bidirectional comms | POST + SSE (asymmetric) | Full duplex half-channels |
+| Service discovery | DNS / hardcoded URLs | Multicast presence protocol |
+| Failover | Application-level retry | Multi-path + SREJ + path switching |
+| Multi-tenancy | Separate endpoints / auth | VSN cryptographic isolation |
+
+**The structural argument:** Switchboard already solves network-level concerns that HTTPS re-solves per-connection at the application level. MCP over Switchboard would look like stdio-style transport (JSON-RPC over a bidirectional byte stream) with network-level routing, admission, and failover underneath. The agent doesn't need an HTTP server — it reads/writes a channel.
+
+### Apparent Gaps — And Their True Nature
+
+Several properties of MCP appear mismatched with Switchboard's architecture:
+
+1. **Request-response vs. stream-oriented** — MCP is JSON-RPC request/response. Switchboard's timeslice framing is optimized for continuous streams.
+2. **No latency sensitivity** — MCP tool calls take 100ms-10s. Switchboard's sub-100ms optimization is irrelevant.
+3. **No terminal substrate** — MCP endpoints aren't terminal sessions. The access node / console model assumes terminal producers and consumers.
+4. **Variable payload sizes** — 1 MB tool results don't benefit from timeslice framing or idempotent replay.
+
+**Critical reframing (from maker):** These gaps are properties of MCP's *current transport design*, not inherent requirements of agent communication. MCP was designed by people from a web-services world. The protocol's shape — HTTP transport, request-response orientation, no quality-of-service, no built-in failover, no network-level identity — reflects its authors' assumptions inherited from web development, not the problem's actual requirements.
+
+**The real question is not "does Switchboard fit MCP?" but "does Switchboard fit what agent communication *should be* — which MCP approximates badly because it inherited web-services assumptions?"**
+
+This reframing changes the assessment fundamentally:
+- Request-response may be the wrong pattern for agent communication (agents are persistent processes that *stream* work to each other, not stateless HTTP handlers)
+- Latency sensitivity may matter more than current MCP acknowledges (real-time agent coordination, not just tool invocation)
+- Terminal substrate may be more natural than HTTP for agents that already live in terminals
+- The apparent mismatch between Switchboard and MCP may indicate that MCP is misshapen, not that Switchboard is wrong for the job
+
+### What's Undisclosed
+
+The human has indicated there are aspects of this use case not yet on the table. The exploration is intentionally incomplete. The fit assessment — particularly around what agent communication *should be* vs. what MCP currently provides — cannot be completed with missing inputs.
+
+### Parking Conditions
+
+**Status: Explored, parked. Not graveyard, not frontier.**
+
+**Reopens when:**
+- The human discloses the missing context
+- Marvel's agent communication protocol (charter F3) matures
+- Director's design (charter F1) clarifies agent-to-agent communication needs
+- Evidence emerges about what agent communication *should be* beyond MCP's HTTP-inherited model
+
+**Would graveyard if:**
+- MCP transport evolves to solve remote well (HTTP/3 + QUIC would close most gaps)
+- The workload mismatch proves fundamental to agent communication itself, not just to MCP's HTTP bias
+- Second use case dilutes switchboard's terminal-session focus in a way that harms the primary use case
+
+**Would promote to frontier if:**
+- Undisclosed context reveals that the alignment is deeper than infrastructure overlap
+- Director design shows that agent communication needs connection-oriented, quality-managed, terminal-native channels — exactly what Switchboard provides
+- Evidence that MCP's HTTP assumptions are actively holding back agent capabilities, and Switchboard's model enables capabilities that HTTP-based MCP cannot
