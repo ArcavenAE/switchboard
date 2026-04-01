@@ -7,7 +7,9 @@ selected_approach: 'ai-recommended'
 techniques_used: ['research-synthesis', 'first-principles-thinking', 'morphological-analysis', 'values-exploration', 'research-synthesis-loss-recovery', 'cross-pollination', 'constraint-mapping', 'research-synthesis-downstream-strategy', 'exploration-mcp', 'research-synthesis-tmux-control-mode', 'design-router-control-plane']
 ideas_generated: []
 context_file: ''
-next_phase: 'product-brief'
+next_phase: 'prd-or-architecture-or-build'
+product_brief_complete: true
+product_brief_file: '_bmad-output/planning-artifacts/product-brief-switchboard-2026-03-31.md'
 morphological_parameters_completed: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
 morphological_parameters_next: null
 queued_sessions:
@@ -30,10 +32,12 @@ session_bootstrap: |
     Values/Philosophy (10 values + death conditions), Morphological Analysis (12 parameters — ALL COMPLETE),
     Loss Recovery & QoS Technical Research (queued session #1 — COMPLETE),
     Downstream Strategy Technical Research (queued session #2 — COMPLETE)
-  - **Next phase:** Product brief, then PRD. Remaining queued sessions (#6 management plane, #7 admission keying) deferred to architecture work.
+  - **Product brief complete:** `_bmad-output/planning-artifacts/product-brief-switchboard-2026-03-31.md`
+  - **Next phase:** PRD, architecture doc (IEEE 1016 via spectacle), or start building.
   - **Session #3 (Switchboard for MCP): explored, parked** — undisclosed context pending.
   - **Session #4 (tmux control mode depth): complete** — console-side decision: CN-E configurable (CN-B/D MVP, CN-C post-MVP, CN-A long-term).
   - **Session #5 (router control plane): complete** — one mechanism (reliable flooding of signed messages) serves topology, admission, and membership.
+  - **Sessions #6-#7 (management plane, admission keying): deferred** to architecture work.
   - **All 12 parameters have working directions chosen.**
   - **Parameter 2 now has concrete technique selections** — see Queued Session 1 Results.
   - **Parameter 6 downstream now decided: D-CE** (hybrid via content-type tiering) — see Queued Session 2 Results.
