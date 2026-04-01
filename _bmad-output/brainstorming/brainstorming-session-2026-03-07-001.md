@@ -1,18 +1,18 @@
 ---
-stepsCompleted: [1, 2-research, 3-first-principles, 4-morphological-analysis-complete, 5-loss-recovery-qos-research]
+stepsCompleted: [1, 2-research, 3-first-principles, 4-morphological-analysis-complete, 5-loss-recovery-qos-research, 6-downstream-strategy-research]
 inputDocuments: []
 session_topic: 'Switchboard - low-latency multi-path E2E encrypted tmux session router architecture with virtual switched networks'
 session_goals: 'Naming, architecture design, edge protocol design, failure mode analysis, use cases'
 selected_approach: 'ai-recommended'
-techniques_used: ['research-synthesis', 'first-principles-thinking', 'morphological-analysis', 'values-exploration', 'research-synthesis-loss-recovery', 'cross-pollination', 'constraint-mapping']
+techniques_used: ['research-synthesis', 'first-principles-thinking', 'morphological-analysis', 'values-exploration', 'research-synthesis-loss-recovery', 'cross-pollination', 'constraint-mapping', 'research-synthesis-downstream-strategy']
 ideas_generated: []
 context_file: ''
-next_phase: 'queued-session-2-downstream-strategy'
+next_phase: 'queued-session-3-switchboard-for-mcp'
 morphological_parameters_completed: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
 morphological_parameters_next: null
 queued_sessions:
   - 'COMPLETED: technical-research: loss recovery and QoS techniques for interactive overlays (X.25, interleaving, hybrid ARQ+FEC)'
-  - 'technical-research: downstream strategy (scrollback, graphics/Sixel/Kitty, TUI, tmux control mode, Claude Code use case)'
+  - 'COMPLETED: technical-research: downstream strategy (scrollback, graphics/Sixel/Kitty, TUI, tmux control mode, Claude Code use case)'
   - 'exploration: Switchboard for MCP - agent-to-agent and agent-to-tool overlay network'
   - 'technical-research: tmux control mode depth, console-side integration options'
   - 'design: router control plane (topology, link-state, forwarding computation, distributed database)'
@@ -27,10 +27,12 @@ session_bootstrap: |
   ### Where We Are
   - **Phases complete:** Research Synthesis (10 topics), First Principles (8 truths),
     Values/Philosophy (10 values + death conditions), Morphological Analysis (12 parameters — ALL COMPLETE),
-    Loss Recovery & QoS Technical Research (queued session #1 — COMPLETE)
-  - **Next phase:** Queued session #2 (downstream strategy) or another queued session
+    Loss Recovery & QoS Technical Research (queued session #1 — COMPLETE),
+    Downstream Strategy Technical Research (queued session #2 — COMPLETE)
+  - **Next phase:** Queued session #3 (Switchboard for MCP) or another queued session
   - **All 12 parameters have working directions chosen.**
   - **Parameter 2 now has concrete technique selections** — see Queued Session 1 Results.
+  - **Parameter 6 downstream now decided: D-CE** (hybrid via content-type tiering) — see Queued Session 2 Results.
 
   ### Parameters Summary (1-12)
 
@@ -612,7 +614,7 @@ Router treats multicast as "forward to all interfaces with subscribers to this a
 | 3 | Degradation Signaling | Visual + clock step-down + advisory + graceful hold | Direction set |
 | 4 | Channel Establishment | Multicast presence protocol, signed, three trigger types | Decided |
 | 5 | VSN Admission | Two-tier: admission keys (VSN) + session auth (access node), signed multicast | Decided (envelope details TBD) |
-| 6 | Upstream/Downstream | Upstream: U-C idempotent replay. Downstream: ALL OPEN | Upstream decided, downstream research flagged |
+| 6 | Upstream/Downstream | Upstream: U-C idempotent replay. Downstream: D-CE hybrid via content-type tiering (MVP: D-A reliable stream) | Decided |
 | 7 | Router Forwarding | A (address) MVP → F (address+label) post-MVP; 3 multicast addresses per VSN | Decided (revisit flag set) |
 | 8 | tmux Integration | AN-E (control mode + PTY fallback). Console: all options open, configurable | Access node decided, console research flagged |
 | 9 | Node Multi-homing | MH-C active/active, PS-D policy+latency, FT-D layered failover, ID-D crypto identity, IF-D upstream free/downstream TBD | Decided |
@@ -791,7 +793,7 @@ _Re-scoped after critical correction. Control node is a user-facing node type, n
 | 3 | Degradation Signaling | Visual + clock step-down + advisory + graceful hold | Direction set |
 | 4 | Channel Establishment | Multicast presence protocol, signed, three trigger types | Decided |
 | 5 | VSN Admission | Two-tier: admission keys (VSN) + session auth (access node), signed multicast | Decided (envelope details TBD) |
-| 6 | Upstream/Downstream | Upstream: U-C idempotent replay. Downstream: ALL OPEN | Upstream decided, downstream research flagged |
+| 6 | Upstream/Downstream | Upstream: U-C idempotent replay. Downstream: D-CE hybrid via content-type tiering (MVP: D-A reliable stream) | Decided |
 | 7 | Router Forwarding | A (address) MVP → F (address+label) post-MVP; 3 multicast addresses per VSN | Decided (revisit flag set) |
 | 8 | tmux Integration | AN-E (control mode + PTY fallback). Console: all options open, configurable | Access node decided, console research flagged |
 | 9 | Node Multi-homing | MH-C active/active, PS-D policy+latency, FT-D layered failover, ID-D crypto identity, IF-D upstream free/downstream TBD | Decided |
@@ -807,7 +809,7 @@ _Re-scoped after critical correction. Control node is a user-facing node type, n
 
 2. ~~**Technical Research: Loss Recovery & QoS**~~ — **COMPLETED** (see Queued Session 1 Results below)
 
-3. **Technical Research: Downstream Strategy** — tmux control mode internals, scrollback buffer semantics, Sixel/Kitty graphics protocol, content-type detection feasibility, Claude Code scrollback use case. Feeds Parameter 6 downstream decision.
+3. ~~**Technical Research: Downstream Strategy**~~ — **COMPLETED** (see Queued Session 2 Results below)
 
 4. **Exploration: Switchboard for MCP** — Switchboard as an MPLS-like overlay network for MCP, primarily for agent-teaming and agent-tooling. A replacement for agent-to-agent and agent-to-tool virtual networks over reliable, untrusted infrastructure. Originated from exploring remote Claude Code director-to-multiclaude supervisor communication channels. Discovered Claude Relay and the prevalence of MCP as the serious multi-agent communication method. Core question: why WebSocket+MCP+SSH? Could connection-oriented, terminal-native, text-oriented communication be more effective than streaming WebSockets and abused HTTP? This extends Switchboard's values (sovereign sessions, untrusted network, simple reliable communication) into the agent-to-agent domain. **Not a pivot — a potential second use case that shares the same infrastructure and values.**
 
@@ -1122,8 +1124,218 @@ Recovery cascade (within reassembly decision window):
 
 ### Open Questions Remaining
 
-1. **Downstream content-type detection** — heuristic vs. tmux metadata vs. explicit signaling. Depends on downstream strategy (queued session #2).
+1. ~~**Downstream content-type detection**~~ — **RESOLVED** in queued session #2. Three-layer detector: escape sequence scan + pane state cache + byte-rate heuristic.
 2. **FEC group size tuning** — K=4 is the starting point. May need per-content-type K values (smaller K for interactive, larger K for bulk).
 3. **SACK bitmap width** — 2 bytes = 16 frames of selective ACK history. Sufficient? Or does high-loss regime need wider bitmap?
 4. **Interleaving activation threshold** — "high loss >5%" is a starting point. Needs simulation or production data.
 5. **Upstream sliding window depth N** — how many keystrokes in the idempotent replay window? 10? 20? Depends on typical keystroke rate vs. tick interval.
+
+---
+
+## Queued Session 2 Results: Downstream Strategy Technical Research
+
+_Completed 2026-03-31. Technique: research-synthesis._
+_Feeds: Parameter 6 (Upstream/Downstream Asymmetry) — downstream decision._
+_Decision: **D-CE** — hybrid (state sync + reliable stream) via content-type tiering._
+
+### Research Synthesis — Five Targets
+
+#### Target 1: tmux Control Mode Internals
+
+**Protocol:** Control mode (`tmux -CC`) emits structured text instead of rendering to a PTY.
+
+**Key message types:**
+- `%output %<pane-id> <escaped-data>` — raw terminal bytes, tagged by pane
+- `%begin` / `%end` — structured command output blocks
+- `%session-changed`, `%window-add`, `%window-close`, `%pane-mode-changed`, `%layout-change` — lifecycle events
+- `%extended-output` (tmux 3.4+) — richer metadata per output chunk
+
+**What control mode gives:**
+- Pane-multiplexed output without parsing tmux's own rendering
+- Event-driven state tracking (window/pane create/destroy, layout changes)
+- Programmatic command execution with structured responses
+- Clean separation of data (`%output`) and control (`%begin`/`%end`)
+
+**What control mode does NOT give:**
+- Terminal state (no `%screen-state` snapshot — only the byte stream)
+- Scrollback contents (requires `capture-pane -p -S -N` command, not streamed)
+- Content type (tmux doesn't know interactive from bulk from graphics)
+- Cursor position / screen dimensions (queryable, not streamed)
+
+**Finding:** Control mode gives tagged byte streams per pane, not state snapshots. State sync (Mosh-style) requires a terminal state tracker (headless terminal emulator) on the access node consuming `%output` and maintaining a screen buffer. This is proven feasible engineering — a solved class of problem — but requires purpose-built, minimal implementation.
+
+#### Target 2: Scrollback Buffer Semantics
+
+**Two different things called "scrollback":**
+1. **tmux's scrollback** — history buffer per pane, on the access node. Authoritative. Accessible via `capture-pane`.
+2. **Terminal emulator's scrollback** — local terminal's buffer of received bytes. Only as complete as what arrived.
+
+**Scrollback fetch is a different protocol mode than live streaming:**
+
+| Attribute | Live streaming | Scrollback fetch |
+|-----------|---------------|-----------------|
+| Latency sensitivity | Critical (<100ms) | Tolerant (200-500ms, user-initiated) |
+| Loss tolerance | Content-type dependent | Zero — must be complete and ordered |
+| Direction | Push | Pull (console requests) |
+| Recovery | Cascade (dup → FEC → SREJ → drop) | Reliable retransmit only, no TLPKTDROP |
+
+**Finding:** Scrollback is a pull-based reliable fetch, separate from live streaming. State sync handles live display. Reliable fetch handles scrollback. The two coexist naturally — they map to tmux's existing live/copy-mode split. Console enters scroll mode on scroll-up, returns to live mode on scroll-to-bottom.
+
+#### Target 3: Sixel/Kitty Graphics Protocols
+
+**Three competing terminal graphics protocols:**
+
+| Protocol | Origin | Encoding | Chunked? | tmux support |
+|----------|--------|----------|----------|-------------|
+| Sixel | DEC 1984 | ASCII (~3-4x overhead) | No (continuous blob) | tmux 3.4+ passthrough |
+| Kitty | 2017 | Base64 (~1.33x) | Yes (`m=1`/`m=0`) | tmux 3.4+ passthrough |
+| iTerm2 inline | 2010s | Base64 (~1.33x) | No (single blob) | tmux 3.4+ passthrough |
+
+**Common property: all three have zero loss tolerance.** A single missing byte corrupts the image or crashes the parser. Partial graphics data is worse than no graphics data.
+
+**Detection is feasible via escape sequence delimiters:**
+- Sixel: `ESC P ... ESC \`
+- Kitty: `ESC _G ... ESC \`
+- iTerm2: `ESC ]1337;File= ... BEL`
+
+**Kitty's chunked model maps naturally to timeslice frames** — one chunk per tick, reassembled atomically on the console side. Sixel can be chunked artificially at row boundaries (`-` characters).
+
+**Finding:** Graphics need reliable delivery (no TLPKTDROP), atomic reassembly, and escape sequence-based detection. MVP can pass through without special handling (E router, low loss). Post-MVP adds detection + reliable-mode flag in channel header.
+
+#### Target 4: Content-Type Detection Feasibility
+
+**Three-layer detection model:**
+
+**Layer 1 — Escape Sequence Detection (per-frame, highest priority):**
+- Graphics: Sixel/Kitty/iTerm2 delimiter detection → reliable mode
+- TUI: Alternate screen buffer `?1049h`/`?1049l` → state sync mode
+- Cost: Linear scan, same work terminal state tracker already does
+
+**Layer 2 — Pane State Cache (event-driven):**
+- `alternate_on` flag (cached on `%pane-mode-changed`)
+- `pane_current_command` (cached on first output, updated on change)
+- Cost: One tmux query per state change, cached
+
+**Layer 3 — Byte-Rate Heuristic (per-tick, fallback):**
+- < ~200 bytes/tick → interactive
+- < ~4KB/tick → streaming
+- \> ~4KB/tick → bulk flood
+- Cost: Counter, negligible
+
+**Combined output: content_type flag (3 bits) in channel header flags byte:**
+
+| Value | Type | Delivery Path | TLPKTDROP |
+|-------|------|---------------|-----------|
+| 0 | Interactive | State sync | Acceptable |
+| 1 | Streaming | Reliable stream | Reluctant |
+| 2 | Bulk | Reliable stream | Acceptable |
+| 3 | TUI | State sync | Acceptable |
+| 4 | Graphics | Reliable stream (atomic) | Never |
+
+**Finding:** Content-type detection is feasible, reliable for graphics and TUI (escape sequences), adequate for interactive/streaming/bulk (byte rate). Cost is negligible if access node runs a terminal state tracker.
+
+#### Target 5: Claude Code Use Case
+
+**Claude Code is the hardest downstream case** — it interleaves content types within a single pane within seconds:
+- Interactive (prompt, confirmation) → streaming (reasoning, response) → bulk (code diffs, tool output) → TUI (status line) → back to interactive
+
+**Key findings:**
+1. **Streaming text where every line matters.** Claude's reasoning is the work product. TLPKTDROP is dangerous — a dropped line loses rationale. Streaming class, reluctant TLPKTDROP.
+2. **Tool execution output is variable.** Transitions from streaming to bulk naturally. Byte-rate heuristic handles this.
+3. **Status line / input box.** Not full alternate-screen TUI. Small, infrequent. Falls to interactive by byte rate. No special treatment.
+4. **Scrollback is first-class.** Users will scroll back through reasoning, diffs, tool output. Strongest argument for reliable scrollback fetch (D-C hybrid).
+5. **Mixed stream demands per-frame classification.** No single strategy works for all of Claude Code's output types.
+
+**Finding:** Claude Code is the strongest argument for D-CE. Its mixed-type output validates per-frame content-type tiering over any uniform downstream strategy.
+
+### Parameter 6: Updated Specification — Downstream Decision
+
+**Decision: D-CE — Hybrid via Content-Type Tiering**
+
+D-C (state sync + reliable for scrollback) and D-E (tiered by content type) converge: D-C describes the two delivery paths, D-E describes the per-frame routing decision between them.
+
+**Access node architecture:**
+
+```
+tmux control mode (%output per pane)
+        │
+        ↓
+┌─────────────────────────┐
+│ Content-Type Detector    │
+│ L1: escape sequence scan │
+│ L2: pane state cache     │
+│ L3: byte-rate heuristic  │
+└──────┬──────┬────────────┘
+       │      │
+       ↓      ↓
+┌────────────┐ ┌──────────────────┐
+│ State Sync │ │ Reliable Stream  │
+│ Path       │ │ Path             │
+│            │ │                  │
+│ Screen buf │ │ Ordered bytes    │
+│ tracker,   │ │ with seq nums,   │
+│ diff vs    │ │ ARQ recovery,    │
+│ last-ack'd │ │ feeds scrollback │
+│ state,     │ │                  │
+│ TLPKTDROP  │ │ Graphics submode:│
+│ ok         │ │ atomic chunks,   │
+│            │ │ no TLPKTDROP     │
+└─────┬──────┘ └────────┬─────────┘
+      └────────┬─────────┘
+               ↓
+      Frame assembly (tick)
+      content_type in header
+```
+
+**Console side:**
+- State sync frames → update local screen buffer, render
+- Reliable stream frames → append local scrollback, render if live mode
+- Graphics frames → buffer until complete, render atomically
+- Scroll-up → scrollback fetch request to access node (pull, reliable)
+- Scroll-to-bottom → return to live mode
+
+**MVP (simplified):**
+
+```
+Downstream MVP: D-A reliable ordered stream.
+  All content treated uniformly.
+  Piggybacked ACK + SACK in upstream frames.
+  ARQ on gap (QUIC model: new frame with old content).
+  TLPKTDROP as last resort, degradation signaled.
+  No terminal state tracker. No content-type detection.
+  No state sync. No scrollback fetch protocol.
+```
+
+**Post-MVP (full D-CE):**
+
+```
+Downstream post-MVP: D-CE hybrid via content-type tiering.
+  Terminal state tracker on access node (control mode consumer).
+  Three-layer content-type detector (escape + cache + byte rate).
+  Two delivery paths: state sync + reliable stream.
+  Five content types: interactive (0), streaming (1), bulk (2), TUI (3), graphics (4).
+  Per-type recovery profiles (from loss recovery session):
+    Interactive/TUI: state sync, duplication, TLPKTDROP acceptable
+    Streaming: reliable stream, duplication + ARQ, reluctant TLPKTDROP
+    Bulk: reliable stream, FEC + interleaving if lossy, TLPKTDROP acceptable
+    Graphics: reliable stream atomic, no TLPKTDROP, chunked delivery
+  Scrollback fetch: pull-based, reliable, separate protocol mode.
+```
+
+### Connections to Other Parameters and Sessions
+
+- **Parameter 2 (Loss Recovery):** Content-type flag drives which recovery profile applies per frame. The four-tier cascade from session #1 applies differently to each content type.
+- **Parameter 3 (Degradation Signaling):** TLPKTDROP policy varies by content type. Degradation signal includes which content types are being affected.
+- **Parameter 8 (tmux Integration):** AN-E control mode is prerequisite for content-type detection and terminal state tracking. PTY fallback limits detection to byte-rate heuristic only.
+- **Parameter 10 (Frame Envelope):** Content-type field uses 3 bits in existing flags byte. No additional header space needed.
+- **Session #1 open question #1 (content-type detection):** Resolved — three-layer detector.
+
+### Open Questions from Downstream Research
+
+1. **Terminal state tracker implementation** — purpose-built minimal screen buffer, or adapt existing library (e.g., Go terminal emulator library)? Engineering scope assessment needed.
+2. **State sync diff format** — character-level diffs, line-level diffs, or screen-region diffs? Tradeoff between diff size and compute cost.
+3. **Scrollback fetch protocol** — request format (line range? byte offset?), flow control, interaction with live mode. Separate channel or flag on existing channel?
+4. **Content-type transition latency** — one tick lag when content type changes (byte-rate heuristic lags by one tick). Is this acceptable for all transitions?
+5. **Sixel chunking boundaries** — row boundaries (`-`) are natural chunk points. Are they sufficient, or do large Sixel images need sub-row chunking?
+6. **State sync acknowledgment** — how does the console ACK screen state? Per-diff sequence number? Last-seen state hash? Needed for the access node to know what to diff against.
+7. **iTerm2 is not a reference implementation** — terminal state tracking is proven feasible but Switchboard must build its own minimal, purpose-built tracker. No dependency on bloated consumer software.
