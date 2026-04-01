@@ -1,17 +1,17 @@
 ---
-stepsCompleted: [1, 2-research, 3-first-principles, 4-morphological-analysis-complete]
+stepsCompleted: [1, 2-research, 3-first-principles, 4-morphological-analysis-complete, 5-loss-recovery-qos-research]
 inputDocuments: []
 session_topic: 'Switchboard - low-latency multi-path E2E encrypted tmux session router architecture with virtual switched networks'
 session_goals: 'Naming, architecture design, edge protocol design, failure mode analysis, use cases'
 selected_approach: 'ai-recommended'
-techniques_used: ['research-synthesis', 'first-principles-thinking', 'morphological-analysis', 'values-exploration']
+techniques_used: ['research-synthesis', 'first-principles-thinking', 'morphological-analysis', 'values-exploration', 'research-synthesis-loss-recovery', 'cross-pollination', 'constraint-mapping']
 ideas_generated: []
 context_file: ''
-next_phase: 'post-morphological-synthesis-or-queued-sessions'
+next_phase: 'queued-session-2-downstream-strategy'
 morphological_parameters_completed: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
 morphological_parameters_next: null
 queued_sessions:
-  - 'technical-research: loss recovery and QoS techniques for interactive overlays (X.25, interleaving, hybrid ARQ+FEC)'
+  - 'COMPLETED: technical-research: loss recovery and QoS techniques for interactive overlays (X.25, interleaving, hybrid ARQ+FEC)'
   - 'technical-research: downstream strategy (scrollback, graphics/Sixel/Kitty, TUI, tmux control mode, Claude Code use case)'
   - 'exploration: Switchboard for MCP - agent-to-agent and agent-to-tool overlay network'
   - 'technical-research: tmux control mode depth, console-side integration options'
@@ -26,9 +26,11 @@ session_bootstrap: |
 
   ### Where We Are
   - **Phases complete:** Research Synthesis (10 topics), First Principles (8 truths),
-    Values/Philosophy (10 values + death conditions), Morphological Analysis (12 parameters — ALL COMPLETE)
-  - **Next phase:** Post-morphological synthesis, or pivot to one of the queued sessions
+    Values/Philosophy (10 values + death conditions), Morphological Analysis (12 parameters — ALL COMPLETE),
+    Loss Recovery & QoS Technical Research (queued session #1 — COMPLETE)
+  - **Next phase:** Queued session #2 (downstream strategy) or another queued session
   - **All 12 parameters have working directions chosen.**
+  - **Parameter 2 now has concrete technique selections** — see Queued Session 1 Results.
 
   ### Parameters Summary (1-12)
 
@@ -803,7 +805,7 @@ _Re-scoped after critical correction. Control node is a user-facing node type, n
 
 1. ~~**Philosophy/Values Exploration**~~ — **COMPLETED** (see Philosophy section above)
 
-2. **Technical Research: Loss Recovery & QoS** — X.25 guaranteed delivery (LAP-B, sliding window, selective reject), interleaving vs. duplication (digital radio/satellite), hybrid ARQ+FEC decision models (SRT, QUIC, WebRTC). Feeds Parameter 2 technique selection.
+2. ~~**Technical Research: Loss Recovery & QoS**~~ — **COMPLETED** (see Queued Session 1 Results below)
 
 3. **Technical Research: Downstream Strategy** — tmux control mode internals, scrollback buffer semantics, Sixel/Kitty graphics protocol, content-type detection feasibility, Claude Code scrollback use case. Feeds Parameter 6 downstream decision.
 
@@ -814,3 +816,314 @@ _Re-scoped after critical correction. Control node is a user-facing node type, n
 6. **Design: Router Management Plane** — Configuration, monitoring, operations, upgrades. How routers are provisioned, how the first control key is bootstrapped (VR-C), rolling updates, observability.
 
 7. **Design: Admission Keying Particulars** — Authentication and reauthentication flows, revocation propagation mechanics, key lifecycle (creation, distribution, rotation, expiry, revocation). Depends on router distributed database design (#5).
+
+---
+
+## Queued Session 1 Results: Loss Recovery & QoS Technical Research
+
+_Completed 2026-03-31. Techniques: research-synthesis, cross-pollination, constraint-mapping._
+_Feeds: Parameter 2 (Loss Recovery Strategy) technique selection._
+
+### Research Synthesis — Three Targets
+
+#### Target 1: X.25 / LAP-B — Guaranteed Delivery Over Unreliable Links
+
+**LAP-B (Link Access Procedure, Balanced) — ITU-T X.25 Layer 2:**
+
+Key mechanisms from this bit-oriented, full-duplex data link protocol:
+
+1. **Sliding Window with Go-Back-N and Selective Reject (SREJ)**
+   - Window size: 1-7 (mod 8) or 1-127 (extended, mod 128)
+   - Each frame carries N(S) (send sequence) and N(R) (receive sequence, ACKs all < N(R))
+   - **Go-Back-N (REJ):** "Missing frame 3 — resend from 3 onward." Simple but wasteful.
+   - **Selective Reject (SREJ):** "Missing frame 3 — resend *only* 3." Bandwidth-efficient, requires receiver buffering.
+   - **For Switchboard:** SREJ is the right choice — bandwidth is cheap, latency matters. A frame lost on path A may already have arrived on path B.
+
+2. **Timer-Driven Retransmit (T1) + Retry Limit (N2)**
+   - T1 ≈ slightly more than one RTT. After N2 failures, link declared dead.
+   - **For Switchboard:** T1 maps to timeslice clock + one RTT. Multi-path advantage: retransmit via *different* path.
+
+3. **Piggyback ACKs**
+   - N(R) carried free in every data frame — ACKs ride on reverse-direction traffic.
+   - **For Switchboard:** Half-channel structure is a natural piggyback vehicle.
+
+4. **Frame Check Sequence (16-bit CRC)**
+   - Corrupt frames silently discarded, retransmit handles recovery.
+   - **For Switchboard:** HMAC in outer envelope already serves this purpose, but stronger.
+
+**What transfers:** Sliding window with SREJ, piggybacked ACKs, timer-driven retransmit with clean failure escalation, window size as memory/flow-control bound.
+
+**What doesn't:** Go-Back-N is wasteful. Single-path assumption. Mandatory in-order delivery.
+
+#### Target 2: Interleaving vs. Duplication — Digital Radio & Satellite
+
+**Duplication (send it twice):**
+
+Used in DVB-S2 (satellite critical streams), dual-homed financial feeds (NYSE/NASDAQ), MPTCP redundant scheduler, Pro-MPEG (critical audio).
+
+| Attribute | Value |
+|-----------|-------|
+| Bandwidth cost | 2x (100% overhead) |
+| Recovery latency | Zero |
+| Burst tolerance | Survives total loss of one path |
+| Complexity | Trivial |
+
+**For Switchboard upstream:** 2× on ~96 bytes = 192 bytes/tick. At 100 ticks/sec = 19.2 KB/s. Bandwidth is irrelevant. Duplication is essentially free.
+
+**Interleaving (scatter to survive):**
+
+Rearranges data so burst errors spread across multiple FEC recovery groups when de-interleaved.
+
+Used in GSM/GPRS (8-frame depth, ~40ms), DAB/DAB+ (~384ms depth), DVB-T, CCSDS (deep space), CD audio (CIRC, survives 4mm scratches).
+
+| Attribute | Value |
+|-----------|-------|
+| Bandwidth cost | Zero (rearrangement only, but requires FEC underneath) |
+| Recovery latency | Depth × frame interval |
+| Burst tolerance | Proportional to depth |
+| Complexity | Moderate — depth tuning and buffering |
+
+**Critical tradeoff:** Interleaving trades latency for burst tolerance.
+- Depth 3, tick 10ms = 30ms added. Marginal.
+- Depth 8, tick 10ms = 80ms. Dangerous.
+- Depth 3, tick 50ms = 150ms. **Dead.** Exceeds perception threshold.
+
+**Head-to-head for Switchboard:**
+
+| Dimension | Duplication | Interleaving |
+|-----------|-------------|--------------|
+| Upstream (keystrokes) | Perfect. Free. | Overkill. U-C already handles loss. |
+| Downstream (interactive) | Fine. Cheap. | Unnecessary for small frames. |
+| Downstream (burst/bulk) | Expensive at 10KB+. | Natural fit with latency budget. |
+| Downstream (graphics) | Very expensive at 100KB+. | Loss-intolerant — needs reliable retransmit instead. |
+
+**Conclusion:** Not competing strategies — complementary, stratified by content type.
+
+#### Target 3: Hybrid ARQ+FEC Decision Models — SRT, QUIC, WebRTC
+
+**SRT (Secure Reliable Transport) — Haivision:**
+
+Live video over public internet. Sub-second latency. Bloomberg, NHL, Twitch ingest.
+
+- **ARQ-first with Too-Late Packet Drop (TLPKTDROP):** Sender buffer sized to latency budget. Immediate NAK on sequence gap. Retransmit if within budget. If too late → both sender and receiver drop. No wasted bandwidth on stale data.
+- **Optional FEC (since v1.5):** Column+row XOR parity. FEC recovers before ARQ fires (saves one RTT). ARQ handles what FEC can't.
+- **Transfers to Switchboard:** TLPKTDROP is philosophically aligned — late keystrokes are worse than dropped ones. Immediate NAK beats timer-based detection. Latency budget as first-class parameter.
+
+**QUIC (RFC 9000 + RFC 9002) — Google/IETF:**
+
+~30% of global web traffic. Deliberately no FEC — multiplexed streams eliminate head-of-line blocking, reducing loss impact enough for ARQ alone.
+
+- **Smart ARQ:** Packet threshold (3 subsequent ACKs = loss), time threshold (RTT × 9/8), Probe Timeout with exponential backoff.
+- **Retransmit frames, not packets:** Never resend same packet. New packet carries old frames. Avoids retransmission ambiguity.
+- **Per-path RTT tracking:** All timeouts derived from measured RTT.
+- **Transfers to Switchboard:** "Retransmit frames not packets" = timeslice model by construction. Per-path RTT tracking feeds path selection.
+
+**WebRTC (RFC 8854 + RFC 5109) — Google Meet, Zoom, Discord:**
+
+Closest regime to Switchboard: small payloads (20ms voice frames), strict latency, bidirectional.
+
+- **Four-tier recovery hierarchy:**
+  1. Redundant coding (RFC 2198) — previous frame's payload at lower quality in every packet
+  2. XOR FEC (ulpfec) — parity groups, no RTT cost
+  3. NACK retransmit — if RTT allows within playout deadline
+  4. Concealment / skip — if too late
+- **Adaptive FEC rate (GCC):** 0% at <1% loss → 10-20% at 2-5% → 30%+ at >5%.
+- **Transfers to Switchboard:** The four-tier hierarchy is the answer. Redundant coding validates U-C idempotent replay. Adaptive FEC is directly applicable. Uneven Level Protection — upstream gets max protection, downstream gets tiered.
+
+**Synthesis across all three:**
+
+| Mechanism | SRT | QUIC | WebRTC | Switchboard Fit |
+|-----------|-----|------|--------|-----------------|
+| FEC | Optional add-on | Excluded | Core layer | Core for downstream burst |
+| ARQ trigger | Immediate NAK | Packet+time threshold | NACK with RTT check | Immediate NAK + RTT budget check |
+| Too-late policy | TLPKTDROP | Implicit PTO backoff | Playout deadline | TLPKTDROP — explicit, first-class |
+| Retransmit unit | Original packet | New packet/old frames | Original packet | New frame/old content (QUIC model) |
+| Adaptation | Connection-time budget | RTT-derived timeouts | Real-time FEC rate | Per-regime + measured loss |
+| Multi-path | No | No | No | **Switchboard's unique advantage** |
+
+### Cross-Pollination — Five Mechanism Transfers
+
+#### CP-1: Reassembly Window as Decision Engine
+
+The receiver knows: when the frame was sent (timestamp), how long each path takes (per-path RTT), when the next tick fires (local clock). This creates a decision window:
+
+```
+Frame sent ──── Expected arrival ──── Next tick deadline
+                                  ↑
+                    Decision window: all recovery here
+```
+
+Four-step cascade within the window:
+
+| Step | Mechanism | Source | Cost |
+|------|-----------|--------|------|
+| 1 | Check duplicate from alternate path | Satellite/financial feeds | Zero |
+| 2 | Check FEC parity group | WebRTC ulpfec / SMPTE 2022-1 | Zero latency |
+| 3 | SREJ via alternate path | X.25 LAP-B + multi-path | One alternate-path RTT |
+| 4 | TLPKTDROP + degradation signal | SRT | Zero — decision |
+
+Step 3 decision logic:
+```
+remaining_window = next_tick_deadline - now
+if remaining_window > min(alternate_path_RTTs):
+    send SREJ via fastest alternate path
+else:
+    TLPKTDROP → deliver partial, signal degradation
+```
+
+Multi-path advantage: SREJ goes via the path that *didn't* lose the frame — different failure domain than the lossy path.
+
+#### CP-2: No Retransmit, Only New Frames (QUIC × Timeslice)
+
+QUIC's "never resend same packet, send new packet with old frames" and Switchboard's "the bus leaves on time" are the same idea discovered independently.
+
+- **Upstream:** Already solved. U-C idempotent replay = every frame carries last N keystrokes. No retransmit mechanism needed.
+- **Downstream with state sync (Mosh-style):** Lost frame superseded by next diff covering larger delta. No retransmit needed.
+- **Downstream with sequential content:** Lost content included in next tick's frame alongside new content. Frame gets bigger, sequence stays clean.
+
+**Implication:** For state-syncable downstream content, ARQ may not be needed at all. ARQ reserved for sequential, non-supersedable content (log streams, file transfers, scrollback).
+
+#### CP-3: Regime-Aware Recovery Profiles (WebRTC GCC × Timer Regimes)
+
+| Regime | Recovery Profile |
+|--------|-----------------|
+| **Idle** | No FEC, no duplication. Keep-alive only. ARQ on keep-alive loss. |
+| **Negotiation** | Duplication only. Small critical messages. |
+| **Active — low loss** (<1%) | Upstream: duplication. Downstream: no FEC, ARQ if needed. |
+| **Active — moderate** (1-5%) | Upstream: duplication. Downstream: XOR parity K=4. ARQ backstop. |
+| **Active — high** (>5%) | Duplication. Aggressive FEC K=2-3 + interleaving depth 2-3. Degradation signal. |
+| **Active — critical** (>15%) | State-sync-only mode. Clock step-down. Prominent warning. |
+
+Adaptation loop: measure loss every K ticks. Step up protection immediately. Step down slowly (hysteresis — confirm improvement before reducing protection).
+
+Recovery profile transitions connect directly to Parameter 3 degradation signaling — same loss measurement drives both.
+
+#### CP-4: Piggybacked ACKs + SACK Bitmap (X.25 × Half-Channels)
+
+Each half-channel's data frames carry ACKs for the reverse half-channel. 6 bytes added to channel header:
+
+| Field | Size | Purpose |
+|-------|------|---------|
+| `ack_seq` | 4 bytes | Highest contiguous reverse-channel sequence received |
+| `ack_bitmap` | 2 bytes | SACK bitmap beyond ack_seq for selective reject |
+
+Example: `ack_seq=40, bitmap=0b1101` → "Have 40, 41, 43, 44. Missing 42." Sender includes 42's content in next frame.
+
+Standalone ACK frames fire only when reverse half-channel is idle (no data frames to piggyback on).
+
+#### CP-5: Content-Type Stratified Interleaving
+
+| Content Type | Interleaving | Rationale |
+|-------------|-------------|-----------|
+| Interactive prompt | None. Duplication + ARQ. | Every ms matters. |
+| Streaming output | Depth 2-3 if moderate+ loss. | User reading, not reacting. 20-30ms invisible. |
+| Bulk transfer | Depth 3-5. | Throughput > per-frame latency. |
+| Graphics (Sixel/Kitty) | None. Reliable retransmit. | Loss-intolerant binary. Partial = corruption. |
+
+Content-type detection options: heuristic (output rate), tmux control mode metadata, explicit signaling, conservative default (treat as interactive, switch after sustained bulk).
+
+### Constraint Mapping — Mechanism Scoring
+
+All mechanisms scored against 9 hard constraints (C1: <100ms latency, C2: independent half-channels, C3: upstream U-C, C4: dual-path, C5: 44+16 byte frame budget, C6: E router MVP, C7: variable frames, C8: SSH trust layer, C9: degradation signaled).
+
+| Mechanism | Constraints Passed | Key Limitation | Verdict |
+|-----------|-------------------|----------------|---------|
+| **Duplication** | All | Single-path E router = no redundancy (degrades gracefully) | Always on |
+| **XOR Parity FEC K=4** | All | Variable frames need padding+length metadata. 40ms group window at 10ms ticks. | Downstream, post-MVP |
+| **SREJ via alternate path** | All | Requires dual-path. One RTT cost. | Downstream backstop, post-MVP |
+| **TLPKTDROP** | All | Must signal degradation (C9) | Always on |
+| **Piggybacked ACK+SACK** | All | 6 bytes added to channel header (~16→~22 bytes) | Always on |
+| **Adaptive FEC rate** | All | Meta-controller, not a mechanism itself | Always on |
+| **Interleaving depth 2-3** | Conditional C1 | Depth × tick = latency cost. Limited value on E router MVP. | Downstream bulk only, post-MVP |
+
+**Variable-frame FEC solution:**
+```
+Parity payload = XOR(pad(frame1, MAX), ..., pad(frameK, MAX))
+Parity metadata = [len1, len2, ..., lenK]  (K × 2 bytes)
+Recovery: XOR parity with received frames → missing frame (padded). Trim to stored length.
+```
+
+### Parameter 2: Updated Specification — Concrete Techniques Selected
+
+**MVP (E router, single or dual path):**
+
+```
+Upstream:
+  - Duplication across available paths (always)
+  - U-C idempotent replay: sliding window of last N keystrokes (always)
+  - Piggybacked downstream ACK + SACK bitmap in every frame (always)
+  - TLPKTDROP: keystroke older than perception budget → discard (always)
+
+Downstream:
+  - Duplication across available paths when frame size < threshold (always)
+  - Piggybacked upstream ACK + SACK bitmap in every frame (always)
+  - TLPKTDROP: frame past tick deadline → skip, deliver next state,
+    signal degradation via Parameter 3 (always)
+  - ARQ: on SACK gap detection, include missed content in next tick's
+    frame (QUIC model — new frame with old content, not retransmit)
+  - Two recovery regimes: normal (duplication + ARQ) and degraded
+    (ARQ + clock step-down + degradation signal)
+```
+
+**Post-MVP (multi-path, multi-hop):**
+
+```
+Add to downstream:
+  - XOR parity FEC: K=4 groups, variable-frame with length metadata
+    Activated at moderate loss (1-5%), regime-aware
+  - SREJ via alternate path: triggered by SACK bitmap, only when
+    remaining decision window > alternate path RTT
+  - Interleaving: depth 2-3, bulk content only, activated at high
+    loss (>5%)
+  - Four-regime adaptive profile (low/moderate/high/critical loss)
+    with fast step-up, slow step-down (hysteresis)
+
+Recovery cascade (within reassembly decision window):
+  1. Check duplicate arrival from alternate path → use if present
+  2. Check FEC parity group → recover if complete
+  3. SREJ if window > min(alternate RTTs) → retransmit via fastest alt
+  4. TLPKTDROP → skip, deliver available state, signal degradation
+```
+
+**Channel header additions (to existing ~16 byte budget):**
+
+| Field | Size | Purpose |
+|-------|------|---------|
+| `ack_seq` | 4 bytes | Highest contiguous reverse-channel sequence received |
+| `ack_bitmap` | 2 bytes | SACK bitmap for selective reject |
+
+**FEC channel extension (parity frames only, TLV):**
+
+| Field | Size | Purpose |
+|-------|------|---------|
+| `fec_group_id` | 2 bytes | Parity group identifier |
+| `fec_group_size` | 1 byte | K value |
+| `fec_position` | 1 byte | Position in group (0=parity) |
+| `frame_lengths` | K × 2 bytes | Original frame lengths for variable-size XOR recovery |
+
+### Key Research Sources Referenced
+
+- **X.25/LAP-B:** ITU-T X.25, HDLC/LAP-B sliding window, selective reject (SREJ)
+- **Interleaving:** GSM (3GPP TS 05.03), DAB (ETSI EN 300 401), DVB-T (ETSI EN 300 744), CCSDS (131.0-B), CD CIRC (IEC 60908)
+- **SRT:** Haivision SRT Protocol Technical Overview, TLPKTDROP, SMPTE 2022-1/7 FEC
+- **QUIC:** RFC 9000 (transport), RFC 9002 (loss detection and congestion control)
+- **WebRTC:** RFC 8854 (media transport), RFC 5109 (ulpfec), RFC 2198 (redundant audio), RFC 4585 (RTCP feedback/NACK), Google Congestion Control (GCC)
+- **Duplication:** DVB-S2 PLP, MPTCP redundant scheduler, Pro-MPEG/SMPTE 2022-1
+- **Multi-path:** MPTCP (RFC 8684), BLEST scheduler, STTF scheduler
+
+### Connections to Other Parameters
+
+- **Parameter 1 (Timer Regimes):** Recovery profiles map to regimes. Idle = no FEC. Active = regime-aware cascade.
+- **Parameter 3 (Degradation Signaling):** Profile transitions trigger degradation signals. Same loss measurement drives both.
+- **Parameter 6 (Upstream/Downstream):** Upstream fully resolved (U-C + duplication). Downstream technique selection now concrete but content-type stratification depends on downstream strategy decision (still open — queued session #2).
+- **Parameter 9 (Multi-homing):** SREJ via alternate path leverages multi-path. Pre-auth to standby routers enables instant switchover.
+- **Parameter 10 (Frame Envelope):** Channel header grows by 6 bytes (ACK+SACK). FEC extension uses TLV in parity frames.
+- **Parameter 11 (Router-to-Router):** Hysteresis/dampening pattern shared between FEC adaptation and link-state convergence.
+
+### Open Questions Remaining
+
+1. **Downstream content-type detection** — heuristic vs. tmux metadata vs. explicit signaling. Depends on downstream strategy (queued session #2).
+2. **FEC group size tuning** — K=4 is the starting point. May need per-content-type K values (smaller K for interactive, larger K for bulk).
+3. **SACK bitmap width** — 2 bytes = 16 frames of selective ACK history. Sufficient? Or does high-loss regime need wider bitmap?
+4. **Interleaving activation threshold** — "high loss >5%" is a starting point. Needs simulation or production data.
+5. **Upstream sliding window depth N** — how many keystrokes in the idempotent replay window? 10? 20? Depends on typical keystroke rate vs. tick interval.
