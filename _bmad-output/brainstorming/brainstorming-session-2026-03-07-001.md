@@ -1,13 +1,13 @@
 ---
-stepsCompleted: [1, 2-research, 3-first-principles, 4-morphological-analysis-complete, 5-loss-recovery-qos-research, 6-downstream-strategy-research, 7-switchboard-for-mcp-exploration, 8-tmux-control-mode-depth]
+stepsCompleted: [1, 2-research, 3-first-principles, 4-morphological-analysis-complete, 5-loss-recovery-qos-research, 6-downstream-strategy-research, 7-switchboard-for-mcp-exploration, 8-tmux-control-mode-depth, 9-router-control-plane]
 inputDocuments: []
 session_topic: 'Switchboard - low-latency multi-path E2E encrypted tmux session router architecture with virtual switched networks'
 session_goals: 'Naming, architecture design, edge protocol design, failure mode analysis, use cases'
 selected_approach: 'ai-recommended'
-techniques_used: ['research-synthesis', 'first-principles-thinking', 'morphological-analysis', 'values-exploration', 'research-synthesis-loss-recovery', 'cross-pollination', 'constraint-mapping', 'research-synthesis-downstream-strategy', 'exploration-mcp', 'research-synthesis-tmux-control-mode']
+techniques_used: ['research-synthesis', 'first-principles-thinking', 'morphological-analysis', 'values-exploration', 'research-synthesis-loss-recovery', 'cross-pollination', 'constraint-mapping', 'research-synthesis-downstream-strategy', 'exploration-mcp', 'research-synthesis-tmux-control-mode', 'design-router-control-plane']
 ideas_generated: []
 context_file: ''
-next_phase: 'queued-session-5-router-control-plane'
+next_phase: 'product-brief'
 morphological_parameters_completed: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
 morphological_parameters_next: null
 queued_sessions:
@@ -16,9 +16,9 @@ queued_sessions:
   - 'EXPLORED-PARKED: exploration: Switchboard for MCP - infrastructure alignment real, gaps are MCP HTTP-inherited limitations, undisclosed context pending'
   - 'EXPLORED-PARKED: exploration: Switchboard for MCP - agent-to-agent and agent-to-tool overlay network'
   - 'COMPLETED: technical-research: tmux control mode depth, console-side integration options'
-  - 'design: router control plane (topology, link-state, forwarding computation, distributed database)'
-  - 'design: router management plane (config, monitoring, operations, upgrades)'
-  - 'design: admission keying particulars (authentication, reauthentication, revocation propagation)'
+  - 'COMPLETED: design: router control plane (topology, link-state, forwarding computation, distributed database)'
+  - 'DEFERRED-TO-ARCHITECTURE: design: router management plane (config, monitoring, operations, upgrades)'
+  - 'DEFERRED-TO-ARCHITECTURE: design: admission keying particulars (authentication, reauthentication, revocation propagation)'
 session_bootstrap: |
   ## Session Bootstrap — Resume Instructions
 
@@ -30,9 +30,10 @@ session_bootstrap: |
     Values/Philosophy (10 values + death conditions), Morphological Analysis (12 parameters — ALL COMPLETE),
     Loss Recovery & QoS Technical Research (queued session #1 — COMPLETE),
     Downstream Strategy Technical Research (queued session #2 — COMPLETE)
-  - **Next phase:** Queued session #5 (router control plane) or another queued session
+  - **Next phase:** Product brief, then PRD. Remaining queued sessions (#6 management plane, #7 admission keying) deferred to architecture work.
   - **Session #3 (Switchboard for MCP): explored, parked** — undisclosed context pending.
-  - **Session #4 (tmux control mode depth): complete** — console-side decision: CN-E configurable (CN-B/D MVP, CN-C post-MVP, CN-A long-term). See Queued Session 4 Results.
+  - **Session #4 (tmux control mode depth): complete** — console-side decision: CN-E configurable (CN-B/D MVP, CN-C post-MVP, CN-A long-term).
+  - **Session #5 (router control plane): complete** — one mechanism (reliable flooding of signed messages) serves topology, admission, and membership.
   - **All 12 parameters have working directions chosen.**
   - **Parameter 2 now has concrete technique selections** — see Queued Session 1 Results.
   - **Parameter 6 downstream now decided: D-CE** (hybrid via content-type tiering) — see Queued Session 2 Results.
@@ -816,13 +817,13 @@ _Re-scoped after critical correction. Control node is a user-facing node type, n
 
 4. ~~**Exploration: Switchboard for MCP**~~ — **EXPLORED, PARKED** (see Queued Session 3 Results below). Infrastructure alignment is real. Key insight: the apparent gaps are limitations of MCP's HTTP-inherited design, not inherent requirements of agent communication. Undisclosed context prevents full assessment. Reopens when human discloses or director design matures.
 
-5. **Design: Router Control Plane** — Topology discovery, link-state exchange, forwarding computation, network-distributed database for admission state/VSN membership/revocation propagation. Foundational piece that multiple parameters depend on.
+5. ~~**Design: Router Control Plane**~~ — **COMPLETED** (see Queued Session 5 Results below).
 
    ~~**Technical Research: tmux control mode depth, console-side integration options**~~ — **COMPLETED** (see Queued Session 4 Results below). Merged into session #4 since it was originally queued separately but covers the same Parameter 8 scope.
 
-6. **Design: Router Management Plane** — Configuration, monitoring, operations, upgrades. How routers are provisioned, how the first control key is bootstrapped (VR-C), rolling updates, observability.
+6. **Design: Router Management Plane** — Configuration, monitoring, operations, upgrades. How routers are provisioned, how the first control key is bootstrapped (VR-C), rolling updates, observability. **Deferred to architecture work.**
 
-7. **Design: Admission Keying Particulars** — Authentication and reauthentication flows, revocation propagation mechanics, key lifecycle (creation, distribution, rotation, expiry, revocation). Depends on router distributed database design (#5).
+7. **Design: Admission Keying Particulars** — Authentication and reauthentication flows, revocation propagation mechanics, key lifecycle (creation, distribution, rotation, expiry, revocation). Depends on router distributed database design (#5). **Deferred to architecture work.** (Note: #5 designed the distributed database — this session can proceed when needed.)
 
 ---
 
@@ -1526,3 +1527,129 @@ Console: CN-E configurable.
 3. **CN-C keystroke routing** — mapping local pane IDs to remote pane IDs. Needs a pane registry.
 4. **`%pause` integration with recovery cascade** — should source-side pause be step 4.5 (between SREJ and TLPKTDROP) or a content-type-specific alternative to TLPKTDROP?
 5. **tmux version requirements** — `%subscription-changed`, `%pause`, and `%extended-output` require tmux 3.4+. What's the fallback for older tmux? Polling + no pause + basic `%output` only.
+
+---
+
+## Queued Session 5 Results: Router Control Plane Design
+
+_Completed 2026-03-31. Technique: design._
+_Feeds: Parameters 5, 7, 9, 11, 12 — the foundational undescribed piece._
+_Key insight: **One mechanism (reliable flooding of signed messages) serves all three control plane functions.**_
+
+### Three Functions of the Control Plane
+
+| Function | What It Does | Consistency Requirement |
+|----------|-------------|------------------------|
+| **Topology & routing** | Routers discover each other, exchange link-state, compute forwarding tables | Reliable flood, fast convergence (~1-2s) |
+| **Admission state distribution** | Distributed database of which keys are admitted to which VSNs | Reliable flood, revocation wins over admission |
+| **VSN membership propagation** | Which nodes are currently connected to which routers, for multicast forwarding | Reliable flood, eventual consistency ok |
+
+### Function 1: Topology and Routing
+
+**Bootstrap (TD-E):** Router starts with seed list (known routers). Control node's router is the natural seed. Gossip discovers additional routers within a few rounds.
+
+**Link-State Advertisement (SE-A):**
+```
+LSA:
+  router_id: <hash of router public key, 8 bytes>
+  sequence: <u64, monotonically increasing>
+  timestamp: <u64, UTC nanos>
+  links:
+    - neighbor: <router_id>
+      latency_ms: <measured one-way>
+      loss_rate: <measured>
+      jitter_ms: <derived from latency variance>
+```
+
+**Flooding:** Router receives LSA with higher sequence than stored → updates link-state database → forwards to all neighbors except source. Classic reliable flooding (OSPF model).
+
+**Forwarding table computation:** Each router runs Dijkstra independently over its link-state database with latency as metric. Result: next-hop for each destination. At 2-20 routers, Dijkstra is microseconds.
+
+**Convergence:**
+- Triggered updates on link quality change beyond threshold → immediate LSA flood
+- Dampening for flapping links → suppress rapid oscillation
+- Periodic full refresh every T seconds → catch any missed updates
+- Target: alternative paths found within ~1-2 seconds of router failure
+
+### Function 2: Admission State Distribution
+
+**The distributed database.** Stores which public keys are admitted to which VSNs, with role (control/console/access_node), expiry, and revocation state.
+
+**Consistency model: reliable flooding with confirmation.**
+
+Key registration flow:
+1. Control node sends signed key registration to its connected router
+2. Router validates signature (control node must have `role: control` for target VSN)
+3. Router adds key to local admission database
+4. Router floods registration to all other routers (same mechanism as LSAs)
+5. Each receiving router validates signature + adds key
+6. Confirmation propagates back → control node gets acknowledgment
+
+**Revocation:** Same mechanism. Signed revocation floods to all routers. **Revocation wins over admission** — if registration and revocation are in flight simultaneously, revocation takes precedence.
+
+**Forwarding-time admission check:**
+```
+Frame arrives with: VSN_ID (8 bytes) + source_addr (8 bytes) + HMAC (16 bytes)
+Lookup: admission_db[vsn_id][source_addr] → admitted? → forward or drop
+```
+Hash table lookup, O(1) per frame. Database size is small (admitted keys across VSNs). Memory and CPU: negligible.
+
+### Function 3: VSN Membership Propagation
+
+**Tracks which nodes are currently connected to which routers.** Needed for multicast forwarding — "which routers have subscribers for this VSN multicast address?"
+
+**Join/leave protocol:**
+- Node connects to router, joins VSN → router floods "join" to all routers
+- Node disconnects → router floods "leave" to all routers
+- Receiving routers update their membership tables
+
+**Multicast forwarding:** When a multicast frame arrives for VSN X group Y, forward to all routers listed as having subscribers for that group. PIM-like but simpler — full mesh of state at 2-20 routers, no rendezvous points, no tree switching.
+
+**Eventual consistency is fine:** A join taking 1-2 seconds to propagate means the new node misses one or two multicast heartbeats, then catches up.
+
+### Unified Control Plane Protocol
+
+All three functions share:
+- **Same flooding mechanism** — reliable flooding to all authenticated peers
+- **Same authentication** — Noise handshake between routers (RS-D), signed messages
+- **Same wire format envelope:**
+
+```
+Control Message Envelope:
+  type: u8           # lsa, key_register, key_revoke, membership_join, membership_leave
+  router_id: [u8;8]  # originating router
+  sequence: u64      # per-router monotonic
+  timestamp: u64     # UTC nanos
+  signature: [u8;64] # Ed25519 or Noise static key
+  payload: [u8;...]  # type-specific content
+```
+
+**Control node messages are double-signed:** by the control node (proving authority) and by the forwarding router (proving legitimate receipt).
+
+### MVP Control Plane
+
+E router MVP (single router, single hop):
+```
+Topology: N/A (one router)
+Admission: Local database only, no flooding needed
+Membership: Local table only, multicast is local delivery
+```
+
+**Trivially simple.** All three functions collapse to local operations. Distributed protocol activates when the second router appears.
+
+### Connections to Other Parameters
+
+- **Parameter 5 (VSN Admission):** Admission state distribution is the mechanism that makes VSN admission work across routers.
+- **Parameter 7 (Forwarding):** Membership propagation enables multicast forwarding across routers.
+- **Parameter 9 (Multi-homing):** When a node switches routers, the new router already has admission state (via flooding). Membership join/leave handles the path update.
+- **Parameter 11 (Router-to-Router):** This session concretized the working directions from P11 into a protocol design.
+- **Parameter 12 (Control Node):** "Control node submits changes as a network service" — the service is the control plane's admission flooding mechanism.
+
+### Open Questions (Deferred to Architecture)
+
+1. **LSA format optimization** — is the full LSA format above sufficient, or do we need compact LSAs for frequent updates?
+2. **Admission database persistence** — should routers persist admission state to disk, or rebuild from flooding on restart? Persistence means faster restart. Flooding means simpler code and guaranteed freshness.
+3. **Split-brain scenarios** — what happens if the router network partitions? Each partition has stale admission state for nodes on the other side. Heals on reconnect via sequence-number-based reconciliation.
+4. **Control message prioritization** — should revocations be prioritized over registrations in the flooding queue? Revocation-wins semantics suggest yes.
+5. **Router management plane** — how routers are configured, monitored, updated. Deferred to queued session #6 (now architecture work).
+6. **Admission keying particulars** — authentication flows, key lifecycle. Deferred to queued session #7 (now architecture work). The distributed database from this session unblocks that design.
