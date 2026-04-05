@@ -1,23 +1,11 @@
-# CI + Alpha Release
-# Triggers: push to develop (alpha releases), pull requests to develop or main
-# Builds binaries for all platforms, signs/notarizes, creates pre-release, updates homebrew-tap
-name: CI
+# Stable Release
+# Triggers: tag push matching v*
+# Builds binaries, signs/notarizes, creates GitHub release, updates homebrew-tap
+name: Release
 
 on:
   push:
-    branches: [develop]
-    paths-ignore:
-      - '*.md'
-      - 'docs/**'
-      - 'LICENSE'
-      - '.gitignore'
-      - '_kos/**'
-      - '_bmad/**'
-      - '_bmad-custom/**'
-      - '_bmad-output/**'
-      - '.github/workflows/release.yml'
-  pull_request:
-    branches: [develop, main]
+    tags: ["v*"]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -25,7 +13,6 @@ concurrency:
 
 permissions:
   contents: write
-  pull-requests: write
 
 jobs:
   quality-gate:
@@ -42,7 +29,7 @@ jobs:
       - name: Install gofumpt
         run: go install mvdan.cc/gofumpt@v0.7.0
 
-      - name: Check formatting (gofumpt)
+      - name: Check formatting
         run: |
           UNFORMATTED=$(gofumpt -l .)
           if [ -n "$UNFORMATTED" ]; then
@@ -57,64 +44,12 @@ jobs:
       - name: Run golangci-lint
         uses: golangci/golangci-lint-action@1e7e51e771db61008b38414a730f564565cf7c20 # v9
 
-      - name: Run tests with coverage and race detector
-        run: go test ./... -v -count=1 -race -coverprofile=coverage.out -covermode=atomic
-
-      - name: Display coverage summary
-        run: go tool cover -func=coverage.out
-
-      - name: Enforce coverage floor
-        env:
-          COVERAGE_THRESHOLD: '75'
-        run: |
-          COVERAGE=$(go tool cover -func=coverage.out | grep '^total:' | awk '{print $NF}' | tr -d '%')
-          echo "Total coverage: ${COVERAGE}%  (threshold: ${COVERAGE_THRESHOLD}%)"
-          if [ "$(echo "$COVERAGE < $COVERAGE_THRESHOLD" | bc -l)" -eq 1 ]; then
-            echo "::error::Coverage ${COVERAGE}% is below the ${COVERAGE_THRESHOLD}% threshold"
-            exit 1
-          fi
-
-      - name: Post coverage comment on PR
-        if: github.event_name == 'pull_request'
-        continue-on-error: true
-        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
-        with:
-          script: |
-            const fs = require('fs');
-            const { execSync } = require('child_process');
-            const summary = execSync('go tool cover -func=coverage.out').toString();
-            const totalLine = summary.split('\n').find(l => l.startsWith('total:'));
-            const coverage = totalLine ? totalLine.match(/[\d.]+%/)?.[0] : 'unknown';
-            const body = `## Coverage Report\n\n**Total coverage: ${coverage}**\n\n<details>\n<summary>Package breakdown</summary>\n\n\`\`\`\n${summary}\`\`\`\n</details>`;
-            const { data: comments } = await github.rest.issues.listComments({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.issue.number,
-            });
-            const existing = comments.find(c => c.body.startsWith('## Coverage Report'));
-            if (existing) {
-              await github.rest.issues.updateComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                comment_id: existing.id,
-                body,
-              });
-            } else {
-              await github.rest.issues.createComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: context.issue.number,
-                body,
-              });
-            }
-
-      - name: Validate build
-        run: go build -o /dev/null ./cmd/switchboard
+      - name: Run tests
+        run: go test ./... -v -count=1 -race
 
   build-binaries:
     name: Build Binaries
     needs: quality-gate
-    if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
@@ -123,27 +58,26 @@ jobs:
         with:
           go-version-file: 'go.mod'
 
-      - name: Generate version
+      - name: Extract version
         id: version
         run: |
-          VERSION="0.1.0-alpha.$(date -u +%Y%m%d).${GITHUB_SHA::7}"
-          TAG="alpha-$(date -u +%Y%m%d-%H%M%S)-${GITHUB_SHA::7}"
+          VERSION="${GITHUB_REF_NAME#v}"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "tag=$GITHUB_REF_NAME" >> "$GITHUB_OUTPUT"
 
-      - name: Build alpha binaries
+      - name: Build binaries
         run: |
           LDFLAGS="-X main.version=${{ steps.version.outputs.version }}"
-          GOOS=darwin GOARCH=arm64 go build -ldflags "$LDFLAGS" -o switchboard-a-darwin-arm64 ./cmd/switchboard
-          GOOS=darwin GOARCH=amd64 go build -ldflags "$LDFLAGS" -o switchboard-a-darwin-amd64 ./cmd/switchboard
-          GOOS=linux GOARCH=amd64 go build -ldflags "$LDFLAGS" -o switchboard-a-linux-amd64 ./cmd/switchboard
-          GOOS=linux GOARCH=arm64 go build -ldflags "$LDFLAGS" -o switchboard-a-linux-arm64 ./cmd/switchboard
+          GOOS=darwin GOARCH=arm64 go build -ldflags "$LDFLAGS" -o switchboard-darwin-arm64 ./cmd/switchboard
+          GOOS=darwin GOARCH=amd64 go build -ldflags "$LDFLAGS" -o switchboard-darwin-amd64 ./cmd/switchboard
+          GOOS=linux GOARCH=amd64 go build -ldflags "$LDFLAGS" -o switchboard-linux-amd64 ./cmd/switchboard
+          GOOS=linux GOARCH=arm64 go build -ldflags "$LDFLAGS" -o switchboard-linux-arm64 ./cmd/switchboard
 
       - name: Upload binaries
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7
         with:
           name: binaries
-          path: switchboard-a-*
+          path: switchboard-*
           retention-days: 14
 
     outputs:
@@ -193,23 +127,23 @@ jobs:
         env:
           APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
         run: |
-          codesign --force --options runtime --sign "$APPLE_SIGNING_IDENTITY" --timestamp switchboard-a-darwin-arm64
-          codesign --force --options runtime --sign "$APPLE_SIGNING_IDENTITY" --timestamp switchboard-a-darwin-amd64
+          codesign --force --options runtime --sign "$APPLE_SIGNING_IDENTITY" --timestamp switchboard-darwin-arm64
+          codesign --force --options runtime --sign "$APPLE_SIGNING_IDENTITY" --timestamp switchboard-darwin-amd64
 
       - name: Verify signatures
         run: |
-          codesign --verify --deep --strict switchboard-a-darwin-arm64
-          codesign --verify --deep --strict switchboard-a-darwin-amd64
+          codesign --verify --deep --strict switchboard-darwin-arm64
+          codesign --verify --deep --strict switchboard-darwin-amd64
 
       - name: Build app bundles
         run: |
           VERSION="${{ needs.build-binaries.outputs.version }}"
           chmod +x scripts/create-app.sh
 
-          ./scripts/create-app.sh switchboard-a-darwin-arm64 "$VERSION" .
+          ./scripts/create-app.sh switchboard-darwin-arm64 "$VERSION" .
           mv Switchboard.app Switchboard-arm64.app
 
-          ./scripts/create-app.sh switchboard-a-darwin-amd64 "$VERSION" .
+          ./scripts/create-app.sh switchboard-darwin-amd64 "$VERSION" .
           mv Switchboard.app Switchboard-amd64.app
 
       - name: Sign app bundles
@@ -240,8 +174,8 @@ jobs:
           VERSION="${{ needs.build-binaries.outputs.version }}"
           chmod +x scripts/create-pkg.sh
 
-          ./scripts/create-pkg.sh switchboard-a-darwin-arm64 "$VERSION" "$APPLE_INSTALLER_IDENTITY" switchboard-arm64.pkg
-          ./scripts/create-pkg.sh switchboard-a-darwin-amd64 "$VERSION" "$APPLE_INSTALLER_IDENTITY" switchboard-amd64.pkg
+          ./scripts/create-pkg.sh switchboard-darwin-arm64 "$VERSION" "$APPLE_INSTALLER_IDENTITY" switchboard-arm64.pkg
+          ./scripts/create-pkg.sh switchboard-darwin-amd64 "$VERSION" "$APPLE_INSTALLER_IDENTITY" switchboard-amd64.pkg
 
       - name: Notarize and staple all artifacts
         env:
@@ -264,8 +198,8 @@ jobs:
         with:
           name: signed-binaries
           path: |
-            switchboard-a-darwin-arm64
-            switchboard-a-darwin-amd64
+            switchboard-darwin-arm64
+            switchboard-darwin-amd64
             switchboard-arm64.pkg
             switchboard-amd64.pkg
             switchboard-arm64.dmg
@@ -276,8 +210,8 @@ jobs:
         if: always()
         run: security delete-keychain build.keychain || true
 
-  alpha-release:
-    name: Create Alpha Release
+  release:
+    name: Create Release
     needs: [build-binaries, sign-and-notarize]
     if: |
       always() &&
@@ -310,53 +244,28 @@ jobs:
       - name: Collect linux binaries
         if: needs.sign-and-notarize.result == 'success'
         run: |
-          cp unsigned/switchboard-a-linux-* dist/
+          cp unsigned/switchboard-linux-* dist/
           rm -rf unsigned
 
       - name: List release files
         run: ls -la dist/
 
-      - name: Create pre-release
+      - name: Create release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          VERSION="${{ needs.build-binaries.outputs.version }}"
           TAG="${{ needs.build-binaries.outputs.tag }}"
           gh release create "$TAG" \
             --repo "${{ github.repository }}" \
-            --prerelease \
-            --title "Alpha: $TAG" \
-            --notes "$(cat <<NOTES
-          Automated alpha release from develop.
-
-          **Version:** ${{ needs.build-binaries.outputs.version }}
-          **Commit:** ${{ github.sha }}
-          **Signed:** ${{ needs.sign-and-notarize.result == 'success' && 'Yes (Apple Developer ID)' || 'No (unsigned)' }}
-
-          **Binaries:**
-          - \`switchboard-a-darwin-arm64\` — macOS Apple Silicon
-          - \`switchboard-a-darwin-amd64\` — macOS Intel
-          - \`switchboard-a-linux-amd64\` — Linux x86_64
-          - \`switchboard-a-linux-arm64\` — Linux ARM64
-          NOTES
-          )" \
+            --title "v${VERSION}" \
+            --generate-notes \
             dist/*
 
-      - name: Clean old alpha releases (keep 30)
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          gh release list --repo "${{ github.repository }}" \
-            --json tagName,isPrerelease \
-            --jq '[.[] | select(.isPrerelease)] | sort_by(.tagName) | reverse | .[30:] | .[].tagName' \
-          | while read -r tag; do
-              echo "Deleting old alpha release: $tag"
-              gh release delete "$tag" --repo "${{ github.repository }}" --yes --cleanup-tag
-            done
-
   update-homebrew:
-    name: Update Homebrew Tap (Alpha)
-    needs: [build-binaries, sign-and-notarize, alpha-release]
-    if: needs.alpha-release.result == 'success' && needs.sign-and-notarize.result == 'success'
+    name: Update Homebrew Tap
+    needs: [build-binaries, sign-and-notarize, release]
+    if: needs.release.result == 'success' && needs.sign-and-notarize.result == 'success'
     environment: release
     runs-on: ubuntu-latest
     steps:
@@ -371,11 +280,11 @@ jobs:
         env:
           HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
         run: |
-          TAG="${{ needs.build-binaries.outputs.tag }}"
           VERSION="${{ needs.build-binaries.outputs.version }}"
+          TAG="${{ needs.build-binaries.outputs.tag }}"
 
-          SHA256_ARM64=$(shasum -a 256 switchboard-a-darwin-arm64 | cut -d' ' -f1)
-          SHA256_AMD64=$(shasum -a 256 switchboard-a-darwin-amd64 | cut -d' ' -f1)
+          SHA256_ARM64=$(shasum -a 256 switchboard-darwin-arm64 | cut -d' ' -f1)
+          SHA256_AMD64=$(shasum -a 256 switchboard-darwin-amd64 | cut -d' ' -f1)
 
           git clone "https://x-access-token:${HOMEBREW_TAP_TOKEN}@github.com/ArcavenAE/homebrew-tap.git" homebrew-tap-repo
           cd homebrew-tap-repo
@@ -391,5 +300,5 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add Formula/switchboard.rb
-          git diff --cached --quiet || git commit -m "Update switchboard to $VERSION"
+          git diff --cached --quiet || git commit -m "Update switchboard to v${VERSION}"
           git push
