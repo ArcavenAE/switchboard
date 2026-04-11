@@ -474,7 +474,7 @@ The control node is a daemon that connects to the SVTN, not just CLI commands wi
 ### Upgrade Model
 
 - **Current scope:** Process-ending update. Admin stops the process, updates the binary (package manager, container image tag, direct download), restarts. No in-place hot reload. No self-orchestrated rolling restart.
-- **Self-update command:** Optional `sbctl update` (same pattern as aclaude). Convenience, not requirement. The admin controls when updates happen.
+- **Self-update command:** Optional `sbctl update` (same pattern as forestage). Convenience, not requirement. The admin controls when updates happen.
 - **Future (out of scope):** Light container that balances two running processes for rolling restart and update-in-place. Not required to ship.
 
 ### Diagnostic Views
