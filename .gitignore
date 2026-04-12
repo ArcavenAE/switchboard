@@ -39,3 +39,4 @@ Thumbs.db
 # Build output
 /bin/
 /dist/
+.beads
