@@ -23,6 +23,12 @@ edges:
   - target: question-marvel-integration
     type: derives
     note: "Marvel uses switchboard for multi-host scheduling"
+  - target: elem-node-router-architecture
+    type: derives
+  - target: elem-single-binary-three-modes
+    type: related
+  - target: elem-dual-fastest-path-forwarding
+    type: related
 provenance:
   created_by: human
   session: session-014

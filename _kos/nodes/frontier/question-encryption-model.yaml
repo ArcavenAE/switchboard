@@ -4,7 +4,9 @@ confidence: frontier
 title: "Is SSH end-to-end encryption sufficient, or does switchboard need its own crypto layer?"
 content: |
 
-edges: []
+edges:
+  - target: elem-ssh-end-to-end-encryption
+    type: derives
 provenance:
   created_by: human
   session: null

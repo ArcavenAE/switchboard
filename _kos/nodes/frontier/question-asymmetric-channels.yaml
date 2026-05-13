@@ -4,7 +4,11 @@ confidence: frontier
 title: "How should upstream (keystrokes) and downstream (terminal output) half-channels differ?"
 content: |
 
-edges: []
+edges:
+  - target: elem-asymmetric-half-channels
+    type: derives
+  - target: elem-timeslice-framing
+    type: related
 provenance:
   created_by: human
   session: null
