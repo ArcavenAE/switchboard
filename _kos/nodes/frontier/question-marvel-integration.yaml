@@ -3,7 +3,100 @@ type: question
 confidence: frontier
 title: "How does switchboard integrate with marvel for multi-host agent scheduling?"
 content: |
+  Marvel schedules agent sessions across machines (its `question-multi-host`,
+  orchestrator F7, roadmap M5). Switchboard relays terminal sessions between
+  machines. The seam between them has never been written down on either side,
+  and the gap is SYMMETRICAL — that symmetry is the diagnostic. This node had
+  a title, two edges and a date from 2026-04-11 and no body; marvel's side
+  exists only as an implication inside M5. Each repo can reasonably assume the
+  other owns it.
 
+  This node states the question and what constrains an answer. It does not
+  propose a design, and nothing here should be read as one.
+
+  THE TWO-PLANE DISTINCTION IS THE STARTING POINT, NOT A DETAIL.
+  Marvel already has its own reach mechanism: mrvl:// with embedded SSH on
+  :6785, keys, TOFU, and kubeconfig-style clusters. Switchboard is a second,
+  different thing. The vision's composition walkthrough separates them as
+  ADDRESSING versus RELAY — mrvl:// is a NAME, switchboard is a ROAD, and the
+  road's distinguishing property is that it "works when intended channels
+  don't" (out-of-band, through NAT). Any contract has to say WHEN each plane
+  is used, because a fleet with two ways to reach the same session and no rule
+  for choosing will pick one by accident at implementation time.
+
+  WHAT MARVEL WOULD ASK OF A REMOTE HOST. M5 scopes itself as "Host resource +
+  capability inventory (GPU/memory/models), placement, switchboard-for-reach
+  per the two-plane model". Two facts constrain how much of that switchboard
+  can serve. First, `Host` in marvel is a two-field stub (`Name`, `Status`)
+  with zero references, so nothing on the marvel side has yet committed to
+  what a host IS. Second, marvel's own park note on the implementation ticket
+  (`aae-orc-7mz`, 2026-07-31) names the real blockers as distributed state
+  sync and "no switchboard binding in marvel" — i.e. the implementation is
+  partly blocked by this contract's absence, not the other way round.
+
+  WHAT SWITCHBOARD'S BEDROCK ALREADY DECIDES, AND THEREFORE CONSTRAINS:
+
+  - BLIND RELAY. Routers forward SSH-encrypted frames without seeing content
+    (`elem-ssh-end-to-end-encryption`, `elem-node-router-architecture`).
+    Marvel therefore cannot ask switchboard to route on, filter by, or report
+    anything about session SEMANTICS. Whatever marvel needs to know about a
+    remote session, it learns from its own control plane or from the node —
+    never from the relay. This is the single hardest constraint on the seam
+    and it is not negotiable: it is what makes the carrier untrusted-safe.
+  - ADMISSION HAPPENS AT ROUTERS, NOT NODES. "A node doesn't decide who it
+    talks to; the network does." So there is a real authority question:
+    when marvel places a session on a remote host, who admits the resulting
+    node to the VSN, and does marvel's authority to schedule imply any
+    authority over switchboard admission? On the bedrock as written, it does
+    not — which may be correct, and should be stated deliberately rather than
+    discovered.
+  - MVP IS A SINGLE LAN. `elem-mvp-scope-single-lan` deliberately excludes
+    PE/P routers, multi-hop, multi-router VSNs and cross-LAN deployments
+    until the edge protocol and its UX are proven. Marvel's multi-host case
+    is the cross-LAN one. The two scopes do not currently meet, and pretending
+    otherwise is how a contract gets written against a network that does not
+    exist. Naming the tension is part of the answer.
+  - TIMESLICE FRAMING AND ASYMMETRIC HALF-CHANNELS are latency-shaped
+    commitments made for interactive tmux use. Whether they suit a
+    marvel-driven control path (which is bursty and machine-read, not
+    keystroke-shaped) is unexamined.
+
+  THE OPEN QUESTIONS, stated as the seam rather than as a design:
+
+  (a) What does marvel need from a remote host to PLACE work on it — and how
+      much of that can switchboard supply at all, given blind relay? Capability
+      inventory (GPU, memory, resident models) is host knowledge, not relay
+      knowledge. Does it arrive over a marvel-owned channel, over the relay as
+      opaque payload between marvel components, or not over switchboard at all?
+  (b) What does switchboard PROMISE about reach, and — more usefully — what
+      does it explicitly NOT promise? Delivery, ordering, liveness detection,
+      reconnection semantics, and behaviour when a router is unreachable are
+      all things a scheduler will assume unless told otherwise.
+  (c) WHO DISCOVERS WHOM? Does marvel enumerate hosts through switchboard,
+      does switchboard learn of nodes from marvel, or do both register against
+      a third thing? `question-vsn-routing` asks the same discovery question
+      from the routing side and is currently downstream of this node.
+  (d) WHAT HAPPENS WHEN THE NAME AND THE ROAD DISAGREE — the road is up and
+      the name is stale, or the name resolves and the road is down? This is
+      the failure mode the two-plane model creates by existing, and it is
+      where multi-host will actually break.
+  (e) IS A HOST EVEN A BOUNDARY? marvel's `question-multi-host` carries a
+      precondition surfaced 2026-08-06: two marvel daemons on one machine
+      share the control socket path and the tmux session prefix, and the
+      second takes the socket and kills the first one's fleet. Whatever
+      settles `question-daemon-isolation-boundary` also decides what a Host
+      resource is a boundary around. That question is worth settling before a
+      cross-host contract is designed on top of the assumption.
+  (f) DOES MARVEL EVER RELAY ITS OWN CONTROL TRAFFIC over switchboard, or only
+      operator/agent terminal sessions? The two answers imply very different
+      contracts, and mrvl:// existing suggests the second — but nothing says so.
+
+  WHY DESCRIBE IT NOW, BEFORE EITHER SIDE IS BUILT. Switchboard canon is a
+  117-LOC skeleton whose rebuild follows the K6 -blue harvest, and marvel's
+  Host resource is an unreferenced stub. That is the cheap moment: a contract
+  described now can inform the canon rebuild, whereas one described afterwards
+  has to be retrofitted into a spec that already chose. The reverse order is
+  what the roadmap's "needed, undescribed" column exists to prevent.
 edges:
   - target: aae-orc::elem-marvel-control-plane
     type: derives
